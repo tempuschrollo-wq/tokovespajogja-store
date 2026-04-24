@@ -1,0 +1,14 @@
+{
+  "startedAt": "2026-04-23T15:06:41.132Z",
+  "scenario": "synthetic delete timeout with real backend commit",
+  "orderId": "ORD-20260423220654-1JVHPO",
+  "deleteResult": {
+    "deleted_order_id": "ORD-20260423220654-1JVHPO",
+    "reconciled": true,
+    "reconciled_action": "delete",
+    "stock_action": "NO_CHANGE_ALREADY_CANCELLED"
+  },
+  "remainingOrders": [],
+  "status": "PASS",
+  "finishedAt": "2026-04-23T15:07:33.735Z"
+}

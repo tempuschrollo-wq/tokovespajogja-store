@@ -1,0 +1,10 @@
+{
+  "name": "toko-vespa-jogja-live-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "qa:audit": "node tests/qa-reliability-audit.mjs"
+  }
+}

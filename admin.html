@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Toko Vespa Jogja</title>
+    <meta
+      name="description"
+      content="Halaman admin Toko Vespa Jogja untuk mengelola katalog, foto produk, harga, stok, dan akses login admin."
+    />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      document.documentElement.classList.add("js-enabled");
+    </script>
+    <link rel="icon" type="image/png" href="assets/branding/stickertvj1.png" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body class="admin-body">
+    <div class="admin-shell">
+      <header class="admin-header">
+        <a class="admin-brand" href="index.html" aria-label="Toko Vespa Jogja">
+          <span class="admin-brand-mark">TV</span>
+          <span class="admin-brand-copy">
+            <strong>Toko Vespa Jogja</strong>
+            <small>Dashboard Admin Katalog</small>
+          </span>
+        </a>
+
+        <div class="admin-header-actions">
+          <a class="admin-header-link" href="reports.html">Lihat Laporan</a>
+          <a class="admin-header-link" href="index.html">Lihat Website</a>
+          <a class="admin-header-link" href="system-monitor.html">Cek Sistem</a>
+          <div class="admin-notification-wrap" id="admin-notification-wrap" hidden>
+            <button
+              class="admin-header-link admin-notification-button"
+              id="admin-notification-button"
+              type="button"
+              aria-expanded="false"
+              aria-controls="admin-notification-dropdown"
+              aria-label="Notifikasi order baru"
+            >
+              <span class="admin-notification-icon" aria-hidden="true">&#128276;</span>
+              <span class="admin-notification-label">Order</span>
+              <span class="admin-notification-badge" id="admin-notification-badge" hidden>0</span>
+            </button>
+
+            <div class="admin-notification-dropdown" id="admin-notification-dropdown" hidden>
+              <div class="admin-notification-head">
+                <div>
+                  <strong>Order baru</strong>
+                  <small>Polling ringan tiap beberapa detik</small>
+                </div>
+                <button
+                  class="admin-notification-sound"
+                  id="admin-notification-sound-toggle"
+                  type="button"
+                >
+                  Suara aktif
+                </button>
+              </div>
+
+              <div class="admin-notification-list" id="admin-notification-list">
+                <div class="admin-notification-empty">Belum ada order baru yang belum dibaca.</div>
+              </div>
+            </div>
+          </div>
+          <button class="admin-header-link" id="admin-logout-button" type="button" hidden>
+            Keluar
+          </button>
+        </div>
+      </header>
+
+      <main class="admin-main">
+        <section class="access-card reveal" id="access-card">
+          <div class="access-copy">
+            <p class="eyebrow">Akses Admin</p>
+            <h1>Halaman ini dibuat supaya katalog bisa dikelola tanpa coding.</h1>
+            <p>
+              Tinggal login, cari produk yang ingin diubah, lalu simpan. Foto,
+              harga, stok, dan produk baru semuanya bisa diatur dari sini.
+            </p>
+            <p class="access-note" id="access-note">
+              Akses admin memakai login lokal di browser ini, lalu token admin live disimpan di browser supaya tidak perlu diisi berulang.
+            </p>
+          </div>
+
+          <div class="access-panel" id="setup-view">
+            <span class="access-badge">Setup Admin</span>
+            <h2>Buat data login admin dulu.</h2>
+            <p>
+              Sekali setup selesai, halaman ini akan meminta username dan
+              password setiap kali dibuka.
+            </p>
+
+            <form class="access-form" id="setup-form">
+              <label class="access-field" for="setup-username">
+                <span>Username admin</span>
+                <input id="setup-username" type="text" autocomplete="username" required />
+              </label>
+
+              <label class="access-field" for="setup-password">
+                <span>Password admin</span>
+                <input id="setup-password" type="password" autocomplete="new-password" required />
+              </label>
+
+              <label class="access-field" for="setup-confirm">
+                <span>Ulangi password</span>
+                <input id="setup-confirm" type="password" autocomplete="new-password" required />
+              </label>
+
+              <button class="admin-button admin-button-primary" type="submit">
+                Simpan Login Admin
+              </button>
+            </form>
+          </div>
+
+          <div class="access-panel" id="login-view" hidden>
+            <span class="access-badge">Login Admin</span>
+            <h2>Masuk ke panel pengelolaan katalog.</h2>
+            <p>Gunakan username dan password admin yang sudah dibuat sebelumnya.</p>
+
+            <form class="access-form" id="login-form">
+              <label class="access-field" for="login-username">
+                <span>Username admin</span>
+                <input id="login-username" type="text" autocomplete="username" required />
+              </label>
+
+              <label class="access-field" for="login-password">
+                <span>Password admin</span>
+                <input id="login-password" type="password" autocomplete="current-password" required />
+              </label>
+
+              <button class="admin-button admin-button-primary" type="submit">
+                Masuk ke Dashboard
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <section class="dashboard reveal" id="admin-dashboard" hidden>
+          <div class="dashboard-head">
+            <div>
+              <p class="eyebrow">Dashboard Katalog</p>
+              <h2>Kelola produk dengan langkah yang sederhana dan jelas.</h2>
+            </div>
+            <p class="dashboard-note" id="dashboard-note">
+              Katalog aktif siap diatur dari halaman ini.
+            </p>
+          </div>
+
+          <section class="dashboard-card summary-grid">
+            <article class="summary-card">
+              <span>Total Produk</span>
+              <strong id="summary-total-products">0</strong>
+            </article>
+            <article class="summary-card">
+              <span>Ready Stock</span>
+              <strong id="summary-ready-products">0</strong>
+            </article>
+            <article class="summary-card">
+              <span>Stock Habis</span>
+              <strong id="summary-out-products">0</strong>
+            </article>
+            <article class="summary-card">
+              <span>Total Stok Unit</span>
+              <strong id="summary-stock-units">0</strong>
+            </article>
+          </section>
+
+          <section class="dashboard-card action-card">
+            <div class="action-head">
+              <div>
+                <h3>Aksi Cepat</h3>
+                <p>Pakai tombol di bawah untuk mengatur katalog live yang tersambung ke Google Sheet.</p>
+              </div>
+              <p class="action-note" id="action-note">
+                Perubahan yang disimpan dari dashboard ini akan langsung mengubah inventory live toko.
+              </p>
+            </div>
+
+            <div class="action-buttons">
+              <button class="admin-button admin-button-primary" id="new-product-button" type="button">
+                Tambah Produk Baru
+              </button>
+              <button class="admin-button admin-button-secondary" id="refresh-live-button" type="button">
+                Refresh Data Live
+              </button>
+              <button class="admin-button admin-button-secondary" id="export-button" type="button">
+                Export Snapshot JSON
+              </button>
+            </div>
+          </section>
+
+          <section class="dashboard-card marketplace-card">
+            <div class="marketplace-head">
+              <div>
+                <h3>Catat Order Marketplace</h3>
+                <p>
+                  Gunakan form ini untuk mencatat penjualan dari Shopee, Tokopedia, atau TikTok Shop
+                  tanpa menyentuh Google Sheet manual.
+                </p>
+              </div>
+              <p class="marketplace-head-note" id="marketplace-head-note">
+                Stok pusat akan berkurang lewat jalur stock out live dan transaksi tetap masuk log.
+              </p>
+            </div>
+
+            <form class="marketplace-form" id="marketplace-form">
+              <div class="marketplace-form-grid">
+                <label class="access-field" for="marketplace-channel">
+                  <span>Channel marketplace</span>
+                  <select id="marketplace-channel" required>
+                    <option value="SHOPEE">Shopee</option>
+                    <option value="TOKOPEDIA">Tokopedia</option>
+                    <option value="TIKTOK">TikTok Shop</option>
+                  </select>
+                </label>
+
+                <label class="access-field" for="marketplace-product-search">
+                  <span>Cari produk / SKU</span>
+                  <input
+                    id="marketplace-product-search"
+                    type="search"
+                    placeholder="Cari SKU atau nama produk..."
+                    autocomplete="off"
+                  />
+                </label>
+
+                <label class="access-field marketplace-product-field" for="marketplace-product-select">
+                  <span>Pilih produk</span>
+                  <select id="marketplace-product-select" required></select>
+                </label>
+
+                <label class="access-field" for="marketplace-qty">
+                  <span>Qty terjual</span>
+                  <input id="marketplace-qty" type="number" min="1" step="1" value="1" required />
+                </label>
+
+                <label class="access-field" for="marketplace-price">
+                  <span>Harga jual</span>
+                  <input
+                    id="marketplace-price"
+                    type="text"
+                    inputmode="numeric"
+                    placeholder="Contoh Rp25.000"
+                    required
+                  />
+                </label>
+
+                <label class="access-field" for="marketplace-order-no">
+                  <span>Nomor order marketplace</span>
+                  <input
+                    id="marketplace-order-no"
+                    type="text"
+                    placeholder="Opsional, misalnya SPX-12345"
+                  />
+                </label>
+
+                <label class="access-field marketplace-note-field" for="marketplace-note">
+                  <span>Catatan</span>
+                  <textarea
+                    id="marketplace-note"
+                    rows="3"
+                    placeholder="Opsional. Contoh: promo flash sale, bundle, atau catatan khusus."
+                  ></textarea>
+                </label>
+              </div>
+
+              <article class="marketplace-preview-card">
+                <div class="marketplace-preview-grid">
+                  <div class="marketplace-preview-item">
+                    <span>SKU</span>
+                    <strong id="marketplace-preview-sku">-</strong>
+                  </div>
+                  <div class="marketplace-preview-item">
+                    <span>Kategori</span>
+                    <strong id="marketplace-preview-category">-</strong>
+                  </div>
+                  <div class="marketplace-preview-item">
+                    <span>Stok saat ini</span>
+                    <strong id="marketplace-preview-stock-current">-</strong>
+                  </div>
+                  <div class="marketplace-preview-item">
+                    <span>Stok setelah transaksi</span>
+                    <strong id="marketplace-preview-stock-after">-</strong>
+                  </div>
+                </div>
+                <p class="marketplace-preview-note" id="marketplace-preview-note">
+                  Pilih produk marketplace dulu. Preview stok akan muncul otomatis.
+                </p>
+              </article>
+
+              <div class="marketplace-actions">
+                <button
+                  class="admin-button admin-button-primary"
+                  id="marketplace-submit-button"
+                  type="submit"
+                >
+                  Catat Order Marketplace
+                </button>
+                <p class="marketplace-inline-status" id="marketplace-inline-status">
+                  Transaksi ini akan mengurangi stok pusat, masuk inventory log, dan ikut reporting.
+                </p>
+              </div>
+            </form>
+
+            <div class="marketplace-history-head">
+              <div>
+                <h4>Riwayat Marketplace Terbaru</h4>
+                <p>Cek input terakhir supaya admin lebih yakin transaksi sudah masuk dengan benar.</p>
+              </div>
+              <button
+                class="admin-button admin-button-secondary marketplace-refresh-button"
+                id="marketplace-refresh-button"
+                type="button"
+              >
+                Refresh Riwayat
+              </button>
+            </div>
+
+            <div class="marketplace-history-list" id="marketplace-history-list">
+              <div class="marketplace-history-empty">
+                Belum ada transaksi marketplace yang tercatat.
+              </div>
+            </div>
+          </section>
+
+          <section class="dashboard-card connector-card">
+            <div class="connector-head">
+              <div>
+                <h3>Koneksi Admin Live</h3>
+                <p>
+                  Masukkan token admin dari Apps Script sekali saja di browser ini agar tombol simpan, kelola stok, dan proses order bisa dipakai.
+                </p>
+              </div>
+              <p class="connector-status" id="connector-status">
+                Token admin belum tersimpan di browser ini.
+              </p>
+            </div>
+
+            <form class="connector-form" id="connector-form">
+              <label class="access-field">
+                <span>Admin API token</span>
+                <input
+                  id="admin-api-token"
+                  type="password"
+                  placeholder="Tempel token admin live di sini"
+                  autocomplete="off"
+                />
+              </label>
+
+              <div class="connector-actions">
+                <button class="admin-button admin-button-primary" type="submit">
+                  Simpan Token Browser
+                </button>
+                <button class="admin-button admin-button-secondary" id="clear-token-button" type="button">
+                  Hapus Token Browser
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section class="dashboard-card orders-card">
+            <div class="orders-head">
+              <div>
+                <h3>
+                  Riwayat Pembelian Customer
+                  <span class="orders-live-badge" id="orders-new-badge" hidden>0 baru</span>
+                </h3>
+                <p>
+                  Lihat order customer yang masuk dari website, cek status pembayaran,
+                  lalu pantau barang yang paling laku.
+                </p>
+              </div>
+              <label class="access-field manager-search" for="orders-search">
+                <span>Cari order</span>
+                <input
+                  id="orders-search"
+                  type="search"
+                  placeholder="Cari order ID, nama customer, WhatsApp, atau SKU..."
+                />
+              </label>
+            </div>
+
+            <div class="orders-insight-grid">
+              <article class="orders-insight-card">
+                <span>Total Order</span>
+                <strong id="orders-total-count">0</strong>
+              </article>
+              <article class="orders-insight-card">
+                <span>Belum Dibayar</span>
+                <strong id="orders-unpaid-count">0</strong>
+              </article>
+              <article class="orders-insight-card">
+                <span>Sudah Dibayar</span>
+                <strong id="orders-paid-count">0</strong>
+              </article>
+              <article class="orders-insight-card">
+                <span>Omzet Tercatat</span>
+                <strong id="orders-revenue-total">Rp0</strong>
+              </article>
+            </div>
+
+            <div class="orders-recap-layout">
+              <article class="orders-recap-card">
+                <div class="orders-recap-head">
+                  <h4>Barang Paling Laku</h4>
+                  <span id="top-selling-note">Top penjualan dari order website aktif.</span>
+                </div>
+                <div class="top-selling-list" id="top-selling-list"></div>
+              </article>
+
+              <article class="orders-recap-card">
+                <div class="orders-recap-head">
+                  <h4>Status Order</h4>
+                  <span id="orders-status-note">Ringkasan alur proses order website.</span>
+                </div>
+                <div class="order-status-stack" id="order-status-stack"></div>
+              </article>
+            </div>
+
+            <div class="manager-table-wrap orders-table-wrap">
+              <table class="product-table orders-table">
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Customer</th>
+                    <th>Item</th>
+                    <th>Total</th>
+                    <th>Payment</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="orders-table-body"></tbody>
+              </table>
+            </div>
+
+            <div class="manager-mobile-list orders-mobile-list" id="orders-mobile-list"></div>
+
+            <div class="manager-empty" id="orders-empty" hidden>
+              <strong>Riwayat order belum muncul.</strong>
+              <p>
+                Isi token admin browser untuk memuat data customer dari inventory live,
+                atau cek apakah order website sudah masuk.
+              </p>
+            </div>
+
+            <div class="manager-footer">
+              <span id="orders-summary">0 order</span>
+              <div class="pagination-controls">
+                <button class="admin-button admin-button-secondary" id="orders-prev" type="button">
+                  Sebelumnya
+                </button>
+                <span id="orders-page-label">Hal 1</span>
+                <button class="admin-button admin-button-secondary" id="orders-next" type="button">
+                  Berikutnya
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="dashboard-card manager-card">
+            <div class="manager-head">
+              <div>
+                <h3>Daftar Produk</h3>
+                <p>Cari produk yang mau diubah, lalu simpan perubahan langsung ke inventory live.</p>
+              </div>
+              <label class="access-field manager-search" for="manager-search">
+                <span>Cari produk</span>
+                <input
+                  id="manager-search"
+                  type="search"
+                  placeholder="Cari nama produk, SKU, atau model Vespa..."
+                />
+              </label>
+            </div>
+
+            <div class="manager-table-wrap">
+              <table class="product-table">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Produk</th>
+                    <th>Kategori</th>
+                    <th>Harga</th>
+                    <th>Stok</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="manager-table-body"></tbody>
+              </table>
+            </div>
+
+            <div class="manager-mobile-list" id="manager-mobile-list"></div>
+
+            <div class="manager-empty" id="manager-empty" hidden>
+              <strong>Produk tidak ditemukan.</strong>
+              <p>Coba kata kunci lain atau reset pencarian produk admin.</p>
+            </div>
+
+            <div class="manager-footer">
+              <span id="manager-summary">0 produk</span>
+              <div class="pagination-controls">
+                <button class="admin-button admin-button-secondary" id="manager-prev" type="button">
+                  Sebelumnya
+                </button>
+                <span id="manager-page-label">Hal 1</span>
+                <button class="admin-button admin-button-secondary" id="manager-next" type="button">
+                  Berikutnya
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="dashboard-card editor-card" id="editor-card">
+            <div class="editor-head">
+              <div>
+                <h3 id="editor-title">Tambah Produk Baru</h3>
+                <p id="editor-subtitle">
+                  Isi data produk lalu simpan supaya katalog dan stok live langsung ikut terbarui.
+                </p>
+              </div>
+              <button class="admin-button admin-button-secondary" id="cancel-edit-button" type="button">
+                Kosongkan Form
+              </button>
+            </div>
+
+            <form class="editor-form" id="product-form">
+              <input id="product-id" type="hidden" />
+
+              <div class="editor-grid">
+                <label class="access-field">
+                  <span>Nama produk</span>
+                  <input id="product-name" type="text" required />
+                </label>
+
+                <label class="access-field">
+                  <span>SKU / kode produk</span>
+                  <input id="product-sku" type="text" required />
+                </label>
+
+                <label class="access-field">
+                  <span>Kategori</span>
+                  <select id="product-category"></select>
+                </label>
+
+                <label class="access-field">
+                  <span>Model Vespa</span>
+                  <input
+                    id="product-models"
+                    type="text"
+                    placeholder="Pisahkan dengan koma, contoh: PX, Excel, Sprint"
+                  />
+                </label>
+
+                <label class="access-field">
+                  <span>Harga tampilan</span>
+                  <input
+                    id="product-price-display"
+                    type="text"
+                    placeholder="Contoh: Rp125.000 atau Hubungi admin"
+                  />
+                  <small class="field-hint">
+                    Akan otomatis mengikuti harga angka selama isinya masih berupa nominal Rupiah.
+                  </small>
+                </label>
+
+                <label class="access-field">
+                  <span>Harga angka</span>
+                  <input
+                    id="product-price"
+                    type="text"
+                    inputmode="numeric"
+                    placeholder="Contoh: Rp125.000"
+                  />
+                  <small class="field-hint" id="price-sync-note">
+                    Isi angka biasa atau format Rupiah, sistem akan merapikan otomatis.
+                  </small>
+                </label>
+
+                <label class="access-field">
+                  <span>Stok unit</span>
+                  <input id="product-stock" type="number" min="0" step="1" required />
+                </label>
+
+                <label class="access-field">
+                  <span>Berat produk (kg)</span>
+                  <input
+                    id="product-weight"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Contoh: 0.35"
+                  />
+                </label>
+
+                <label class="access-field">
+                  <span>URL foto produk</span>
+                  <input id="product-image-url" type="url" placeholder="Tempel URL foto jika ada" />
+                </label>
+              </div>
+
+              <div class="editor-media">
+                <label class="admin-button admin-button-secondary" for="product-image-upload">
+                  Upload Foto dari Device
+                </label>
+                <input id="product-image-upload" type="file" accept="image/*" hidden />
+                <div class="image-preview" id="product-image-preview">
+                  <span>Preview foto produk akan muncul di sini.</span>
+                </div>
+              </div>
+
+              <button class="admin-button admin-button-primary" type="submit">
+                Simpan ke Inventory Live
+              </button>
+            </form>
+          </section>
+
+          <section class="dashboard-card security-card">
+            <div class="security-head">
+              <div>
+                <h3>Pengaturan Login Admin</h3>
+                <p>Gunakan form ini kalau nanti username atau password ingin diganti.</p>
+              </div>
+              <p class="security-user">
+                Login aktif:
+                <strong id="current-admin-user">-</strong>
+              </p>
+            </div>
+
+            <form class="security-form" id="credentials-form">
+              <label class="access-field">
+                <span>Username baru</span>
+                <input id="credentials-username" type="text" required />
+              </label>
+
+              <label class="access-field">
+                <span>Password baru</span>
+                <input id="credentials-password" type="password" required />
+              </label>
+
+              <label class="access-field">
+                <span>Ulangi password baru</span>
+                <input id="credentials-confirm" type="password" required />
+              </label>
+
+              <button class="admin-button admin-button-primary" type="submit">
+                Perbarui Login Admin
+              </button>
+            </form>
+          </section>
+
+          <p class="sr-only" id="admin-status" aria-live="polite"></p>
+        </section>
+      </main>
+    </div>
+    <div class="admin-toast" id="admin-toast" role="status" aria-live="polite" hidden></div>
+
+    <script type="module" src="admin.js"></script>
+  </body>
+</html>

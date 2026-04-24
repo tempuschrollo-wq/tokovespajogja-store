@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Laporan Toko Vespa Jogja</title>
+    <meta
+      name="description"
+      content="Panel laporan Toko Vespa Jogja untuk melihat omzet harian, weekly report, monthly report, produk laku, dan low stock alert."
+    />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/png" href="assets/branding/stickertvj1.png" />
+    <link rel="stylesheet" href="admin.css" />
+    <link rel="stylesheet" href="reports.css" />
+  </head>
+  <body class="admin-body reports-body">
+    <div class="admin-shell reports-shell">
+      <header class="admin-header">
+        <a class="admin-brand" href="admin.html" aria-label="Dashboard Admin Toko Vespa Jogja">
+          <span class="admin-brand-mark">TV</span>
+          <span class="admin-brand-copy">
+            <strong>Toko Vespa Jogja</strong>
+            <small>Dashboard Laporan</small>
+          </span>
+        </a>
+
+        <div class="admin-header-actions">
+          <a class="admin-header-link" href="admin.html">Kelola Admin</a>
+          <a class="admin-header-link" href="system-monitor.html">Cek Sistem</a>
+          <a class="admin-header-link" href="index.html">Lihat Website</a>
+        </div>
+      </header>
+
+      <main class="admin-main">
+        <section class="access-card report-lock" id="report-lock" hidden>
+          <div class="access-copy">
+            <p class="eyebrow">Akses Laporan</p>
+            <h1>Masuk admin dulu untuk buka laporan.</h1>
+            <p>
+              Panel laporan memakai login admin yang sama dengan halaman katalog.
+              Setelah masuk, laporan penjualan dan stok akan terbuka otomatis.
+            </p>
+          </div>
+
+          <div class="access-panel">
+            <span class="access-badge">Butuh login</span>
+            <h2>Login dari halaman admin utama.</h2>
+            <p>
+              Buka panel admin, login seperti biasa, lalu kembali ke halaman laporan ini.
+            </p>
+            <a class="admin-button admin-button-primary" href="admin.html">
+              Masuk ke Panel Admin
+            </a>
+          </div>
+        </section>
+
+        <section class="reports-dashboard" id="reports-dashboard" hidden>
+          <section class="dashboard-card report-hero">
+            <div class="report-hero-copy">
+              <p class="eyebrow">Pusat Laporan</p>
+              <h1>Statistik penjualan, laporan mingguan, bulanan, dan alert stok.</h1>
+              <p>
+                Halaman ini khusus untuk membaca performa toko. Data dihitung dari order website
+                dan katalog live yang tersambung ke Google Sheet.
+              </p>
+            </div>
+
+            <div class="report-hero-panel">
+              <span class="report-sync-label" id="report-sync-label">Menyiapkan laporan...</span>
+              <button class="admin-button admin-button-primary" id="refresh-reports-button" type="button">
+                Refresh Laporan
+              </button>
+              <p id="report-token-note">
+                Jika data order tidak muncul, pastikan token admin sudah disimpan di halaman admin utama.
+              </p>
+            </div>
+          </section>
+
+          <section class="report-kpi-grid" aria-label="Ringkasan laporan">
+            <article class="report-kpi-card">
+              <span>Omzet Hari Ini</span>
+              <strong id="kpi-today-revenue">Rp0</strong>
+              <small id="kpi-today-orders">0 order</small>
+            </article>
+            <article class="report-kpi-card">
+              <span>Omzet Minggu Ini</span>
+              <strong id="kpi-week-revenue">Rp0</strong>
+              <small id="kpi-week-profit">Profit estimasi Rp0</small>
+            </article>
+            <article class="report-kpi-card">
+              <span>Omzet Bulan Ini</span>
+              <strong id="kpi-month-revenue">Rp0</strong>
+              <small id="kpi-month-profit">Profit estimasi Rp0</small>
+            </article>
+            <article class="report-kpi-card">
+              <span>Produk Perlu Restock</span>
+              <strong id="kpi-low-stock">0</strong>
+              <small id="kpi-out-stock">0 stok habis</small>
+            </article>
+          </section>
+
+          <section class="report-grid">
+            <article class="dashboard-card report-card report-card-wide">
+              <div class="report-card-head">
+                <div>
+                  <p class="eyebrow">Statistik Harian</p>
+                  <h2>Penjualan 7 hari terakhir</h2>
+                </div>
+                <span id="daily-summary-note">Dihitung dari order aktif.</span>
+              </div>
+              <div class="daily-chart" id="daily-chart"></div>
+            </article>
+
+            <article class="dashboard-card report-card">
+              <div class="report-card-head">
+                <div>
+                  <p class="eyebrow">Low Stock Alert</p>
+                  <h2>Produk yang perlu dicek stoknya</h2>
+                </div>
+                <span id="low-stock-note">Prioritas stok habis dan stok rendah.</span>
+              </div>
+              <div class="low-stock-list" id="low-stock-list"></div>
+            </article>
+
+            <article class="dashboard-card report-card">
+              <div class="report-card-head">
+                <div>
+                  <p class="eyebrow">Weekly Report</p>
+                  <h2>Minggu ini</h2>
+                </div>
+                <span id="weekly-period">-</span>
+              </div>
+              <div class="report-metric-list" id="weekly-metrics"></div>
+              <div class="report-subgrid">
+                <div>
+                  <h3>Top produk minggu ini</h3>
+                  <div class="rank-list" id="weekly-top-products"></div>
+                </div>
+                <div>
+                  <h3>Kategori terlaris</h3>
+                  <div class="rank-list" id="weekly-top-categories"></div>
+                </div>
+              </div>
+            </article>
+
+            <article class="dashboard-card report-card">
+              <div class="report-card-head">
+                <div>
+                  <p class="eyebrow">Monthly Report</p>
+                  <h2>Bulan ini</h2>
+                </div>
+                <span id="monthly-period">-</span>
+              </div>
+              <div class="report-metric-list" id="monthly-metrics"></div>
+              <div class="report-subgrid">
+                <div>
+                  <h3>Top 10 produk bulan ini</h3>
+                  <div class="rank-list scroll-rank-list" id="monthly-top-products"></div>
+                </div>
+                <div>
+                  <h3>Kategori bulan ini</h3>
+                  <div class="rank-list" id="monthly-top-categories"></div>
+                </div>
+              </div>
+            </article>
+
+            <article class="dashboard-card report-card report-card-wide">
+              <div class="report-card-head">
+                <div>
+                  <p class="eyebrow">Rekap Produk Laku</p>
+                  <h2>Barang paling sering terjual</h2>
+                </div>
+                <span id="sales-ranking-note">Order CANCEL tidak dihitung.</span>
+              </div>
+              <div class="rank-table-wrap">
+                <table class="product-table report-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Produk</th>
+                      <th>SKU</th>
+                      <th>Qty</th>
+                      <th>Omzet</th>
+                      <th>Kategori</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sales-ranking-body"></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+
+          <p class="sr-only" id="reports-status" aria-live="polite"></p>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="reports.js"></script>
+  </body>
+</html>

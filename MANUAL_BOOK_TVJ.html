@@ -1,0 +1,1406 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual Book Toko Vespa Jogja</title>
+  <style>
+    :root {
+      --bg: #efe4ca;
+      --panel: rgba(255, 251, 243, 0.92);
+      --panel-strong: #fff9ef;
+      --ink: #1a2418;
+      --muted: #5b6554;
+      --line: rgba(78, 90, 68, 0.15);
+      --accent: #25452f;
+      --accent-soft: #e9f0e6;
+      --brand: #ba652a;
+      --shadow: 0 24px 60px rgba(120, 95, 44, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(193, 137, 52, 0.24), transparent 22%),
+        linear-gradient(180deg, #f3e9d3 0%, #efe4ca 44%, #eadcbf 100%);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .manual-shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 28px auto 60px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .hero {
+      padding: 30px 34px;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .brand-row img {
+      width: 74px;
+      height: 74px;
+      object-fit: contain;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+      padding: 8px;
+      flex: 0 0 auto;
+    }
+
+    .brand-copy small,
+    .section-eyebrow,
+    .mini-eyebrow {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--brand);
+    }
+
+    .brand-copy h1,
+    .step-copy h2,
+    .faq-copy h2 {
+      margin: 8px 0 10px;
+      line-height: 1.02;
+      font-size: clamp(34px, 5vw, 54px);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.75;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .chip {
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.68);
+      border: 1px solid var(--line);
+      font-weight: 700;
+      color: #2f4a39;
+      font-size: 14px;
+    }
+
+    .hero-side {
+      display: grid;
+      gap: 14px;
+    }
+
+    .quick-box,
+    .process-card,
+    .system-card,
+    .faq-item,
+    .focus-notes,
+    .order-legend {
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+    }
+
+    .quick-box {
+      padding: 18px 18px 16px;
+    }
+
+    .quick-box h3,
+    .focus-notes strong,
+    .faq-item h3,
+    .system-card h3,
+    .process-card h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .quick-box p,
+    .focus-notes li,
+    .system-card p,
+    .process-card p,
+    .faq-item p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .step-card {
+      margin-top: 22px;
+      padding: 28px 30px;
+    }
+
+    .step-layout {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.92fr) minmax(0, 1.08fr);
+      gap: 26px;
+      align-items: start;
+    }
+
+    .step-copy {
+      padding-top: 8px;
+    }
+
+    .step-copy h2 {
+      font-size: clamp(28px, 3vw, 40px);
+      margin-bottom: 14px;
+    }
+
+    .step-copy p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.75;
+    }
+
+    .step-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+    }
+
+    .step-list li {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 12px;
+      align-items: start;
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      margin-top: 2px;
+    }
+
+    .focus-figure {
+      margin: 0;
+    }
+
+    .focus-frame {
+      position: relative;
+      overflow: hidden;
+      border-radius: 26px;
+      border: 1px solid var(--line);
+      background: #f4ebd6;
+      min-height: 340px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    }
+
+    .focus-frame.tall {
+      min-height: 420px;
+    }
+
+    .focus-frame.medium {
+      min-height: 360px;
+    }
+
+    .focus-frame img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .focus-stack {
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .shot-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .shot-grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .shot-grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .shot-card {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 12px;
+    }
+
+    .shot-card.span-2 {
+      grid-column: 1 / -1;
+    }
+
+    .shot-window {
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: #f4ebd6;
+      min-height: 170px;
+    }
+
+    .shot-window.tall {
+      min-height: 220px;
+    }
+
+    .shot-window.square {
+      aspect-ratio: 1 / 1;
+      min-height: 180px;
+    }
+
+    .shot-window img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .shot-window.auto {
+      min-height: 0;
+    }
+
+    .shot-window.auto img {
+      position: static;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .shot-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 2;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 800;
+      font-size: 14px;
+      display: grid;
+      place-items: center;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    }
+
+    .shot-label {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      z-index: 2;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 250, 240, 0.92);
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.45;
+      border: 1px solid rgba(120, 95, 44, 0.12);
+      backdrop-filter: blur(6px);
+    }
+
+    .shot-caption {
+      margin: 10px 4px 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .crop-home-search {
+      object-position: 44% 17%;
+    }
+
+    .crop-home-products {
+      object-position: 50% 46%;
+    }
+
+    .crop-cart {
+      object-position: 48% 76%;
+    }
+
+    .crop-admin-products {
+      object-position: 50% 33%;
+    }
+
+    .crop-admin-form {
+      object-position: 50% 76%;
+    }
+
+    .crop-home-search-card {
+      object-position: 31% 22%;
+    }
+
+    .crop-home-product-card {
+      object-position: 50% 58%;
+    }
+
+    .crop-cart-list {
+      object-position: 26% 72%;
+    }
+
+    .crop-cart-summary {
+      object-position: 80% 71%;
+    }
+
+    .crop-admin-search {
+      object-position: 88% 22%;
+    }
+
+    .crop-admin-status {
+      object-position: 75% 42%;
+    }
+
+    .crop-admin-actions {
+      object-position: 91% 42%;
+    }
+
+    .crop-form-top {
+      object-position: 50% 72%;
+    }
+
+    .crop-form-mid {
+      object-position: 50% 81%;
+    }
+
+    .crop-form-save {
+      object-position: 50% 94%;
+    }
+
+    .crop-mobile-metrics {
+      object-position: 50% 15%;
+    }
+
+    .crop-mobile-list {
+      object-position: 50% 44%;
+    }
+
+    .crop-mobile-form {
+      object-position: 50% 79%;
+    }
+
+    .focus-box,
+    .focus-pin {
+      position: absolute;
+      z-index: 2;
+    }
+
+    .focus-box {
+      border: 3px solid rgba(186, 101, 42, 0.95);
+      border-radius: 18px;
+      box-shadow: 0 0 0 999px rgba(30, 31, 22, 0.06);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .focus-pin {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--brand);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+    }
+
+    .focus-caption {
+      margin: 12px 2px 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .focus-notes {
+      margin-top: 14px;
+      padding: 14px 16px;
+    }
+
+    .focus-notes ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .process-strip {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .process-card {
+      padding: 16px 16px 14px;
+      min-height: 0;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .status-pill.orange {
+      background: #f8ece3;
+      color: #b86128;
+    }
+
+    .status-pill.red {
+      background: #fae7e3;
+      color: #c25336;
+    }
+
+    .order-legend {
+      margin-top: 16px;
+      padding: 18px;
+    }
+
+    .order-legend ul {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .report-mini-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .toast-preview {
+      display: grid;
+      align-content: center;
+      gap: 14px;
+      min-height: 220px;
+      padding: 24px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background:
+        radial-gradient(circle at top right, rgba(37, 69, 47, 0.12), transparent 38%),
+        rgba(255, 255, 255, 0.65);
+    }
+
+    .toast-preview img {
+      width: min(100%, 360px);
+      height: auto;
+      border-radius: 18px;
+      box-shadow: 0 18px 44px rgba(40, 52, 30, 0.14);
+    }
+
+    .system-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .system-card {
+      padding: 18px 18px 16px;
+    }
+
+    .faq-card {
+      margin-top: 22px;
+      padding: 30px;
+    }
+
+    .faq-copy p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 17px;
+    }
+
+    .faq-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .faq-item {
+      padding: 18px 18px 16px;
+    }
+
+    .footer-credit {
+      margin-top: 24px;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      color: var(--muted);
+    }
+
+    .footer-credit img {
+      width: 130px;
+      height: auto;
+      display: block;
+    }
+
+    .footer-credit strong {
+      color: var(--ink);
+    }
+
+    @media (max-width: 960px) {
+      .hero-grid,
+      .step-layout,
+      .grid-two,
+      .faq-grid,
+      .system-grid,
+      .report-mini-grid,
+      .process-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .step-card,
+      .faq-card,
+      .hero {
+        padding: 24px 22px;
+      }
+
+      .manual-shell {
+        width: min(100% - 18px, 1120px);
+      }
+
+      .focus-frame,
+      .focus-frame.medium,
+      .focus-frame.tall {
+        min-height: 300px;
+      }
+
+      .footer-credit {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .manual-shell {
+        width: 100%;
+        margin: 0;
+      }
+
+      .card,
+      .quick-box,
+      .process-card,
+      .system-card,
+      .faq-item,
+      .focus-notes,
+      .order-legend {
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .card,
+      .step-card,
+      .faq-card {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="manual-shell">
+    <section class="hero card">
+      <div class="brand-row">
+        <img src="./assets/branding/stickertvj1.png" alt="Logo Toko Vespa Jogja">
+        <div class="brand-copy">
+          <small>Manual operasional harian</small>
+          <h1>Toko Vespa Jogja</h1>
+        </div>
+      </div>
+
+      <div class="hero-grid">
+        <div>
+          <p class="lead">
+            Panduan ini dibuat supaya pemakaian harian lebih gampang. Isinya fokus ke bagian yang benar-benar diklik:
+            cari produk, masukkan barang ke keranjang, kirim order, lanjut ke WhatsApp, terima notifikasi order baru, catat order marketplace, baca laporan, cek kesehatan sistem, dan pahami posisi Google Sheet di belakang layar.
+          </p>
+          <div class="chip-row">
+            <span class="chip">Panel admin = tempat kerja harian</span>
+            <span class="chip">Halaman laporan = cek performa toko</span>
+            <span class="chip">Cek Sistem = pantau backend & backup</span>
+            <span class="chip">Marketplace = catat jualan Shopee/Tokopedia/TikTok Shop</span>
+            <span class="chip">Google Sheet = mesin belakang</span>
+            <span class="chip">Apps Script = tidak perlu dibuka client</span>
+          </div>
+        </div>
+
+        <div class="hero-side">
+          <div class="quick-box">
+            <h3>Alur singkat yang dipakai tiap hari</h3>
+            <p>1. Cek order baru di panel admin. 2. Ubah status sesuai proses. 3. Edit stok, harga, atau foto bila perlu. 4. Buka laporan untuk cek omzet, barang laku, dan produk yang perlu restock.</p>
+          </div>
+          <div class="quick-box">
+            <h3>Hindari membuka bagian teknis</h3>
+            <p>Untuk pemakaian harian, tidak perlu membuka Apps Script, editor teknis, atau menu fungsi di Google Sheet. Cukup pakai website publik dan panel admin.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 1</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Customer cari part langsung dari kolom pencarian.</h2>
+          <p>Bagian paling penting di halaman depan adalah kolom cari, tombol cari, dan kartu produk yang menampilkan harga serta stok. Customer tidak perlu membaca banyak teks.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Ketik nama part, SKU, atau model Vespa lalu tekan tombol <strong>Cari Produk</strong>.</span></li>
+            <li><span class="step-number">2</span><span>Lihat kartu produk untuk cek harga, status stok, dan produk yang paling menarik untuk dibeli.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="shot-grid two">
+            <article class="shot-card">
+              <div class="shot-window">
+                <img class="crop-home-search-card" src="./qa-home-desktop.png" alt="Kolom pencarian website Toko Vespa Jogja">
+                <span class="shot-badge">1</span>
+                <div class="shot-label">Kolom cari dan tombol cari produk.</div>
+              </div>
+              <p class="shot-caption">Area ini dipakai customer untuk mulai cari part berdasarkan nama, SKU, atau model Vespa.</p>
+            </article>
+
+            <article class="shot-card">
+              <div class="shot-window">
+                <img class="crop-home-product-card" src="./qa-home-desktop.png" alt="Kartu produk website Toko Vespa Jogja">
+                <span class="shot-badge">2</span>
+                <div class="shot-label">Kartu produk untuk cek harga dan status stok.</div>
+              </div>
+              <p class="shot-caption">Sesudah mencari, customer melihat kartu produk yang menampilkan harga dan status stok secara ringkas.</p>
+            </article>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Customer mulai dari kolom pencarian, bukan dari baca teks panjang.</li>
+              <li><strong>2</strong> Customer lanjut cek kartu produk sebelum memasukkan barang ke keranjang.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 2</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Produk masuk keranjang, lalu customer lanjut kirim order.</h2>
+          <p>Begitu customer memilih produk ready, item akan masuk ke keranjang dengan feedback visual. Sesudah itu customer cukup cek jumlah item, estimasi total, kirim order, lalu pakai tombol lanjut ke WhatsApp saat popup sukses muncul.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Barang yang dipilih akan terlihat masuk ke keranjang, jadi customer tahu kliknya berhasil dan tidak perlu spam klik.</span></li>
+            <li><span class="step-number">2</span><span>Di sisi kiri terlihat daftar item yang sudah dipilih customer.</span></li>
+            <li><span class="step-number">3</span><span>Di sisi kanan terlihat ringkasan belanja dan tombol lanjut untuk mengirim order ke sistem admin.</span></li>
+            <li><span class="step-number">4</span><span>Sesudah order berhasil dibuat, popup akan menampilkan Order ID dan tombol <strong>Lanjut ke WhatsApp</strong> untuk closing lebih cepat.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="shot-grid two">
+            <article class="shot-card">
+              <div class="shot-window tall">
+                <img class="crop-cart-list" src="./qa-cart-desktop-v3.png" alt="Daftar item di keranjang belanja">
+                <span class="shot-badge">1</span>
+                <div class="shot-label">Daftar item yang sedang dipesan customer.</div>
+              </div>
+              <p class="shot-caption">Bagian kiri ini dipakai untuk cek barang apa saja yang sudah masuk keranjang dan jumlahnya.</p>
+            </article>
+
+            <article class="shot-card">
+              <div class="shot-window tall">
+                <img class="crop-cart-summary" src="./qa-cart-desktop-v3.png" alt="Ringkasan checkout dan tombol kirim order">
+                <span class="shot-badge">2</span>
+                <div class="shot-label">Ringkasan total dan tombol kirim order.</div>
+              </div>
+              <p class="shot-caption">Bagian kanan dipakai customer untuk baca total item, total belanja, lalu mengirim order.</p>
+            </article>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Animasi ke keranjang membantu customer tahu barang sudah masuk.</li>
+              <li><strong>2</strong> Cek ulang isi keranjang dulu supaya tidak ada barang yang salah.</li>
+              <li><strong>3</strong> Setelah sesuai, customer lanjut kirim order dan data langsung masuk ke sistem admin.</li>
+              <li><strong>4</strong> Gunakan popup sukses untuk langsung teruskan ke WhatsApp admin.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 3</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Admin memproses order dengan alur status yang singkat.</h2>
+          <p>Begitu order masuk, admin tidak perlu buka Google Sheet. Cukup buka panel admin, lihat order baru, lalu ubah status sesuai kondisi nyata di toko.</p>
+
+          <div class="process-strip">
+            <div class="process-card">
+              <span class="status-pill">NEW</span>
+              <h3>Order baru masuk</h3>
+              <p>Belum diproses. Biasanya langsung dicek isi pesanan dan nomor WhatsApp customer.</p>
+            </div>
+            <div class="process-card">
+              <span class="status-pill orange">PROCESS</span>
+              <h3>Sedang disiapkan</h3>
+              <p>Part sedang dicek, packing, atau sedang dikonfirmasi ke customer.</p>
+            </div>
+            <div class="process-card">
+              <span class="status-pill">DONE</span>
+              <h3>Transaksi selesai</h3>
+              <p>Pesanan sudah dibereskan. Tidak ada pengembalian stok di tahap ini.</p>
+            </div>
+            <div class="process-card">
+              <span class="status-pill red">CANCEL</span>
+              <h3>Pesanan dibatalkan</h3>
+              <p>Stok otomatis kembali ke produk semula. Jangan cancel dua kali.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="focus-stack">
+          <article class="quick-box">
+            <h3>Yang perlu diingat admin</h3>
+            <p>Begitu order masuk, stok produk sudah terpotong otomatis. Karena itu admin cukup fokus ke konfirmasi, proses, selesai, atau cancel sesuai kondisi pesanan nyata.</p>
+          </article>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>NEW</strong> dipakai saat order baru masuk dan belum mulai diproses.</li>
+              <li><strong>PROCESS</strong> dipakai saat barang sedang dicek, disiapkan, atau sedang dikonfirmasi.</li>
+              <li><strong>DONE</strong> dipakai saat transaksi selesai.</li>
+              <li><strong>CANCEL</strong> dipakai jika pesanan dibatalkan dan stok harus kembali otomatis.</li>
+            </ul>
+          </div>
+
+          <div class="order-legend">
+            <strong>Catatan penting:</strong>
+            <ul>
+              <li><strong>Payment Status</strong> dipakai untuk menandai <strong>UNPAID</strong> atau <strong>PAID</strong>.</li>
+              <li>Kalau order dibatalkan, stok barang otomatis dikembalikan sekali saja.</li>
+              <li>Setelah status sudah sesuai, client cukup lanjut kerja seperti biasa. Tidak perlu edit data order manual di sheet.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 4</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Cari produk di panel admin, lalu edit atau hapus sesuai kebutuhan.</h2>
+          <p>Bagian daftar produk dipakai untuk cari SKU dengan cepat. Dari sini admin bisa cek stok, status, lalu menekan tombol edit atau hapus.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Pakai kolom cari untuk mempercepat pencarian produk.</span></li>
+            <li><span class="step-number">2</span><span>Lihat status stok di tiap baris produk supaya tidak salah jual.</span></li>
+            <li><span class="step-number">3</span><span>Tombol <strong>Edit</strong> dipakai untuk ubah produk. Tombol <strong>Hapus</strong> hanya untuk produk yang memang ingin dihapus permanen sesuai aturan sistem.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="shot-grid two">
+            <article class="shot-card">
+              <div class="shot-window square">
+                <img class="crop-admin-search" src="./admin-dashboard-check-v2.png" alt="Kolom cari produk di panel admin">
+                <span class="shot-badge">1</span>
+                <div class="shot-label">Kolom cari produk.</div>
+              </div>
+              <p class="shot-caption">Pakai untuk cari SKU atau nama produk dengan cepat.</p>
+            </article>
+
+            <article class="shot-card">
+              <div class="shot-window square">
+                <img class="crop-admin-status" src="./admin-dashboard-check-v2.png" alt="Status stok produk di panel admin">
+                <span class="shot-badge">2</span>
+                <div class="shot-label">Status stok per produk.</div>
+              </div>
+              <p class="shot-caption">Lihat dulu status stok sebelum mengubah data produk.</p>
+            </article>
+
+            <article class="shot-card span-2">
+              <div class="shot-window square">
+                <img class="crop-admin-actions" src="./admin-dashboard-check-v2.png" alt="Tombol aksi edit dan hapus produk">
+                <span class="shot-badge">3</span>
+                <div class="shot-label">Tombol Edit dan Hapus.</div>
+              </div>
+              <p class="shot-caption">Edit untuk mengubah data. Hapus untuk menghapus produk sesuai aturan sistem.</p>
+            </article>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Cari dulu produk yang ingin diubah.</li>
+              <li><strong>2</strong> Perhatikan status stoknya agar tidak salah tindakan.</li>
+              <li><strong>3</strong> Baru tekan tombol aksi yang sesuai.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 5</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Tambah produk baru atau ubah data produk dari form yang sama.</h2>
+          <p>Form ini dipakai untuk menambah katalog, mengubah harga, stok, foto, dan informasi penting lain. Jadi client tidak perlu edit file JavaScript atau masuk ke Apps Script.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Isi nama produk, SKU, kategori, model Vespa, harga, stok, dan berat bila diperlukan.</span></li>
+            <li><span class="step-number">2</span><span>Kalau punya foto, upload langsung dari device atau isi URL foto.</span></li>
+            <li><span class="step-number">3</span><span>Tekan <strong>Simpan Produk</strong>. Sistem akan memperbarui data utama otomatis.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="shot-grid two">
+            <article class="shot-card">
+              <div class="shot-window tall">
+                <img class="crop-form-top" src="./admin-dashboard-check-v2.png" alt="Bagian awal form produk di panel admin">
+                <span class="shot-badge">1</span>
+                <div class="shot-label">Isi data utama produk.</div>
+              </div>
+              <p class="shot-caption">Bagian ini untuk nama produk, SKU, kategori, dan model Vespa.</p>
+            </article>
+
+            <article class="shot-card">
+              <div class="shot-window tall">
+                <img class="crop-form-mid" src="./admin-dashboard-check-v2.png" alt="Bagian harga stok dan foto produk di panel admin">
+                <span class="shot-badge">2</span>
+                <div class="shot-label">Harga, stok, dan foto.</div>
+              </div>
+              <p class="shot-caption">Bagian tengah dipakai untuk harga, stok, URL foto, atau upload foto dari device.</p>
+            </article>
+
+            <article class="shot-card span-2">
+              <div class="shot-window tall">
+                <img class="crop-form-save" src="./admin-dashboard-check-v2.png" alt="Tombol simpan produk di panel admin">
+                <span class="shot-badge">3</span>
+                <div class="shot-label">Simpan perubahan.</div>
+              </div>
+              <p class="shot-caption">Sesudah data lengkap, tekan tombol simpan supaya katalog live ikut berubah.</p>
+            </article>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Mulai dari data identitas produk.</li>
+              <li><strong>2</strong> Lengkapi harga, stok, dan foto.</li>
+              <li><strong>3</strong> Simpan agar perubahan masuk ke sistem utama.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 6</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Google Sheet berjalan otomatis di belakang layar.</h2>
+          <p>Untuk operasional harian, client cukup pakai website dan panel admin. Google Sheet diposisikan sebagai pusat data dan cadangan, bukan tempat kerja utama sehari-hari. Backup harian dan archive log juga berjalan otomatis di belakang layar.</p>
+
+          <div class="system-grid">
+            <div class="system-card">
+              <h3>Yang dipakai sehari-hari</h3>
+              <p>Website publik dipakai customer untuk belanja. Panel admin dipakai client untuk cek order, edit produk, ubah harga, stok, foto, dan status order.</p>
+            </div>
+            <div class="system-card">
+              <h3>Yang jangan dibuka kalau tidak perlu</h3>
+              <p>Hindari membuka Apps Script, editor teknis, atau menu fungsi Google Sheet. Google Sheet cukup dianggap sebagai database belakang layar dan cadangan data.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="focus-stack">
+          <div class="shot-grid two">
+            <article class="shot-card">
+              <div class="shot-window tall">
+                <img class="crop-mobile-metrics" src="./qa-admin-mobile-v2.png" alt="Ringkasan dashboard admin di HP">
+                <span class="shot-badge">1</span>
+                <div class="shot-label">Ringkasan dashboard di HP.</div>
+              </div>
+              <p class="shot-caption">Client bisa lihat angka penting toko tanpa buka Google Sheet.</p>
+            </article>
+
+            <article class="shot-card">
+              <div class="shot-window tall">
+                <img class="crop-mobile-list" src="./qa-admin-mobile-v2.png" alt="Daftar produk panel admin di HP">
+                <span class="shot-badge">2</span>
+                <div class="shot-label">Cari dan pilih produk dari HP.</div>
+              </div>
+              <p class="shot-caption">Bagian ini dipakai untuk cari produk dan pilih aksi dengan cepat dari layar HP.</p>
+            </article>
+
+            <article class="shot-card span-2">
+              <div class="shot-window tall">
+                <img class="crop-mobile-form" src="./qa-admin-mobile-v2.png" alt="Form produk panel admin di HP">
+                <span class="shot-badge">3</span>
+                <div class="shot-label">Form simpan perubahan dari HP.</div>
+              </div>
+              <p class="shot-caption">Kalau perlu tambah atau ubah produk, form ini langsung terhubung ke data utama.</p>
+            </article>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Dashboard tetap bisa dibaca dari HP.</li>
+              <li><strong>2</strong> Produk bisa dicari dan dipilih tanpa buka laptop.</li>
+              <li><strong>3</strong> Data tetap tersimpan ke sistem utama walau admin bekerja dari HP.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 7</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Buka halaman laporan untuk membaca performa toko.</h2>
+          <p>Halaman laporan dipakai untuk melihat kondisi toko tanpa hitung manual. Admin bisa cek omzet, barang paling laku, stok rendah, laporan mingguan, dan laporan bulanan dari satu tempat.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Dari panel admin, tekan tombol <strong>Lihat Laporan</strong> di bagian atas.</span></li>
+            <li><span class="step-number">2</span><span>Baca ringkasan omzet hari ini, omzet minggu ini, omzet bulan ini, dan jumlah produk yang perlu restock.</span></li>
+            <li><span class="step-number">3</span><span>Gunakan bagian harian, mingguan, bulanan, dan low stock untuk keputusan operasional toko.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <article class="shot-card">
+            <div class="shot-window auto">
+              <img src="./manual-report-kpis.png" alt="Ringkasan omzet dan restock di halaman laporan">
+              <span class="shot-badge">1</span>
+            </div>
+            <p class="shot-caption">Empat angka utama: omzet hari ini, omzet minggu ini, omzet bulan ini, dan produk yang perlu restock.</p>
+          </article>
+
+          <div class="report-mini-grid">
+            <article class="shot-card">
+              <div class="shot-window auto">
+                <img src="./manual-report-daily.png" alt="Statistik penjualan tujuh hari terakhir">
+                <span class="shot-badge">2</span>
+              </div>
+              <p class="shot-caption">Statistik harian membantu melihat hari mana order sedang ramai atau sepi.</p>
+            </article>
+
+            <article class="shot-card">
+              <div class="shot-window auto">
+                <img src="./manual-report-lowstock.png" alt="Daftar produk yang perlu restock">
+                <span class="shot-badge">3</span>
+              </div>
+              <p class="shot-caption">Low stock alert dipakai untuk menentukan produk mana yang perlu dicek atau restock lebih dulu.</p>
+            </article>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Gunakan angka ringkas untuk membaca kondisi toko secara cepat.</li>
+              <li><strong>2</strong> Cek grafik 7 hari untuk melihat tren penjualan harian.</li>
+              <li><strong>3</strong> Cek low stock sebelum barang benar-benar habis.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 8</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Laporan mingguan dan bulanan membantu membaca barang laku.</h2>
+          <p>Bagian ini cocok dipakai saat evaluasi toko. Admin bisa melihat total order, item keluar, omzet produk, estimasi modal, estimasi profit, top produk, dan kategori terlaris.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span><strong>Weekly Report</strong> dipakai untuk evaluasi minggu berjalan.</span></li>
+            <li><span class="step-number">2</span><span><strong>Monthly Report</strong> dipakai untuk evaluasi bulan berjalan.</span></li>
+            <li><span class="step-number">3</span><span>Bagian top produk membantu menentukan barang yang sering laku dan layak disiapkan stoknya.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="shot-grid two">
+            <article class="shot-card">
+              <div class="shot-window auto">
+                <img src="./manual-report-weekly.png" alt="Weekly report halaman laporan Toko Vespa Jogja">
+                <span class="shot-badge">1</span>
+              </div>
+              <p class="shot-caption">Weekly Report menunjukkan performa minggu ini dan top produk mingguan.</p>
+            </article>
+
+            <article class="shot-card">
+              <div class="shot-window auto">
+                <img src="./manual-report-monthly.png" alt="Monthly report halaman laporan Toko Vespa Jogja">
+                <span class="shot-badge">2</span>
+              </div>
+              <p class="shot-caption">Monthly Report menunjukkan performa bulan ini dan kategori yang paling banyak terjual.</p>
+            </article>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Untuk evaluasi cepat, mulai dari omzet dan item keluar.</li>
+              <li><strong>2</strong> Untuk keputusan belanja stok, lihat top produk dan low stock alert.</li>
+              <li><strong>3</strong> Estimasi profit masih memakai harga modal aktif, jadi angka profit dipakai sebagai perkiraan awal.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 9</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Setiap aksi admin memberi notifikasi berhasil atau gagal.</h2>
+          <p>Setelah admin menambah produk, mengubah produk, cancel order, hapus riwayat, ubah payment, atau refresh data, sistem akan menampilkan notifikasi kecil di kanan bawah layar.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Notifikasi hijau berarti aksi berhasil diproses.</span></li>
+            <li><span class="step-number">2</span><span>Notifikasi merah berarti ada yang perlu dicek, misalnya token admin, koneksi, atau deployment Apps Script.</span></li>
+            <li><span class="step-number">3</span><span>Notifikasi akan hilang otomatis. Admin cukup membaca pesannya, tidak perlu diklik.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="toast-preview">
+            <span class="mini-eyebrow">Contoh notifikasi sukses</span>
+            <img src="./manual-admin-toast-success.png" alt="Contoh notifikasi sukses di panel admin">
+            <p class="shot-caption">Contoh pesan saat produk berhasil ditambahkan, order berhasil dicancel, atau data berhasil disimpan.</p>
+          </div>
+
+          <div class="order-legend">
+            <strong>Kalau muncul notifikasi merah:</strong>
+            <ul>
+              <li>Baca teks error yang muncul di notifikasi.</li>
+              <li>Jika tertulis endpoint belum aktif, hubungi pengelola website untuk deploy ulang Apps Script.</li>
+              <li>Jangan ulang klik berkali-kali sebelum pesan error dibaca.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 10</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Order baru sekarang bisa terlihat tanpa refresh manual.</h2>
+          <p>Di header panel admin ada tombol lonceng order. Saat ada order baru dari website, admin akan melihat badge angka, dropdown order terbaru, toast kecil di layar, dan bunyi ringan bila fitur suara diaktifkan.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Lihat badge angka di tombol <strong>Order</strong> untuk tahu ada order baru yang belum dibaca.</span></li>
+            <li><span class="step-number">2</span><span>Klik tombolnya untuk membuka daftar order terbaru tanpa refresh halaman.</span></li>
+            <li><span class="step-number">3</span><span>Kalau perlu, matikan suara notif dari tombol kecil di dropdown notifikasi.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="system-grid">
+            <div class="system-card">
+              <h3>Badge order baru</h3>
+              <p>Angka di header berarti ada order yang belum dibuka admin. Ini membantu supaya order tidak kelewat saat toko sedang sibuk.</p>
+            </div>
+            <div class="system-card">
+              <h3>Toast otomatis</h3>
+              <p>Saat order baru masuk, sistem menampilkan notifikasi kecil yang memberi tahu ada pesanan baru tanpa mengganggu pekerjaan admin.</p>
+            </div>
+            <div class="system-card">
+              <h3>Dropdown order terbaru</h3>
+              <p>Daftar ini menampilkan order paling baru, waktu masuk, dan nama customer, lalu bisa dipakai untuk lompat ke detail order.</p>
+            </div>
+            <div class="system-card">
+              <h3>Anti bingung</h3>
+              <p>Notif hanya muncul untuk order baru, jadi admin tidak dibanjiri pesan berulang saat halaman sedang dipakai lama.</p>
+            </div>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Kalau ada angka baru, buka dropdown order lebih dulu.</li>
+              <li><strong>2</strong> Setelah dibuka, badge akan berkurang sesuai order yang sudah dibaca.</li>
+              <li><strong>3</strong> Notifikasi ini membantu admin kerja tanpa refresh terus-menerus.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 11</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Penjualan marketplace dicatat dari panel admin, bukan dari Google Sheet manual.</h2>
+          <p>Kalau barang laku di Shopee, Tokopedia, atau TikTok Shop, admin cukup buka section <strong>Catat Order Marketplace</strong>. Dari sini stok pusat akan berkurang, omzet tercatat, profit tetap ikut report, dan histori transaksi tetap rapi.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Pilih channel marketplace: <strong>Shopee</strong>, <strong>Tokopedia</strong>, atau <strong>TikTok Shop</strong>.</span></li>
+            <li><span class="step-number">2</span><span>Cari produk berdasarkan SKU atau nama produk, lalu pilih produk yang benar.</span></li>
+            <li><span class="step-number">3</span><span>Isi qty terjual, harga jual, nomor order marketplace bila ada, lalu simpan.</span></li>
+            <li><span class="step-number">4</span><span>Sesudah sukses, cek riwayat marketplace terbaru di bagian bawah form.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="process-strip">
+            <div class="process-card">
+              <span class="status-pill">1</span>
+              <h3>Pilih channel</h3>
+              <p>Pilih Shopee, Tokopedia, atau TikTok Shop sesuai asal order.</p>
+            </div>
+            <div class="process-card">
+              <span class="status-pill orange">2</span>
+              <h3>Pilih produk</h3>
+              <p>Cari SKU atau nama produk supaya tidak salah part.</p>
+            </div>
+            <div class="process-card">
+              <span class="status-pill">3</span>
+              <h3>Isi qty & harga</h3>
+              <p>Sistem menampilkan preview stok saat ini dan stok sesudah transaksi.</p>
+            </div>
+            <div class="process-card">
+              <span class="status-pill red">4</span>
+              <h3>Simpan</h3>
+              <p>Stok pusat berkurang, log jalan, dan transaksi ikut reporting.</p>
+            </div>
+          </div>
+
+          <div class="order-legend">
+            <strong>Yang perlu diingat:</strong>
+            <ul>
+              <li>Kalau stok tidak cukup, sistem akan menolak transaksi.</li>
+              <li>Jangan kurangi stok marketplace dari sheet manual kalau form ini sudah dipakai.</li>
+              <li>Riwayat marketplace bisa dipakai untuk cek ulang input terakhir.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 12</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Halaman Cek Sistem dipakai untuk lihat kesehatan backend dan backup.</h2>
+          <p>Kalau admin ingin memastikan sistem masih aman, buka halaman <strong>Cek Sistem</strong>. Halaman ini bukan untuk omzet, melainkan untuk memantau proxy, Apps Script, backup terakhir, reporting refresh, alert penting, dan log error hari ini.</p>
+          <ol class="step-list">
+            <li><span class="step-number">1</span><span>Lihat empat status utama: <strong>API Proxy</strong>, <strong>Apps Script</strong>, <strong>Backup</strong>, dan <strong>Reporting</strong>.</span></li>
+            <li><span class="step-number">2</span><span>Kalau ada alert merah atau kuning, baca keterangannya dulu sebelum panik.</span></li>
+            <li><span class="step-number">3</span><span>Gunakan halaman ini saat ada kecurigaan sistem lambat, order tidak masuk, atau backup perlu dicek.</span></li>
+          </ol>
+        </div>
+
+        <div class="focus-stack">
+          <div class="system-grid">
+            <div class="system-card">
+              <h3>Status sistem</h3>
+              <p>Kartu warna hijau berarti sehat, kuning berarti perlu dicek, merah berarti ada yang butuh perhatian.</p>
+            </div>
+            <div class="system-card">
+              <h3>Alert penting</h3>
+              <p>Bagian ini menampilkan backup terlambat, error API hari ini, order NEW terlalu lama, atau data produk yang kurang lengkap.</p>
+            </div>
+            <div class="system-card">
+              <h3>Ringkasan log</h3>
+              <p>Admin bisa baca total error, timeout, duplicate order yang diblok, dan cancel yang perlu review.</p>
+            </div>
+            <div class="system-card">
+              <h3>Riwayat masalah</h3>
+              <p>Daftar ini membantu melacak masalah terakhir tanpa perlu buka sheet log satu per satu.</p>
+            </div>
+          </div>
+
+          <div class="focus-notes">
+            <ul>
+              <li><strong>1</strong> Halaman ini dipakai saat perlu cek kondisi sistem, bukan untuk kerja setiap menit.</li>
+              <li><strong>2</strong> Backup yang masih segar berarti data cadangan berjalan normal.</li>
+              <li><strong>3</strong> Kalau Apps Script merah, hubungi pengelola website untuk pengecekan teknis.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-card card">
+      <div class="section-eyebrow">Langkah 13</div>
+      <div class="step-layout">
+        <div class="step-copy">
+          <h2>Google Sheet tetap penting, tapi cukup dipahami perannya saja.</h2>
+          <p>Client tidak perlu bolak-balik mengubah data dari sheet. Yang penting adalah paham fungsi tiap tab utama supaya tidak bingung saat harus cek data, audit, atau cadangan.</p>
+        </div>
+
+        <div class="focus-stack">
+          <div class="faq-grid">
+            <article class="faq-item">
+              <h3>MASTER_PRODUCTS</h3>
+              <p>Daftar produk utama, stok aktif, harga, status stok, dan data penting produk.</p>
+            </article>
+            <article class="faq-item">
+              <h3>ORDERS_WEBSITE</h3>
+              <p>Tempat order website masuk otomatis lengkap dengan customer, item, total, dan status order.</p>
+            </article>
+            <article class="faq-item">
+              <h3>STOCK_IN & STOCK_OUT</h3>
+              <p>Jejak barang masuk dan barang keluar, termasuk order website, cancel restore, dan marketplace manual.</p>
+            </article>
+            <article class="faq-item">
+              <h3>INVENTORY_LOG & API_LOG</h3>
+              <p>Jejak perubahan stok dan jejak request sistem. Log lama akan di-archive otomatis supaya sheet tetap ringan.</p>
+            </article>
+            <article class="faq-item">
+              <h3>SETTINGS</h3>
+              <p>Tempat pengaturan toko, backup terakhir, archive days, dan pengaturan teknis ringan.</p>
+            </article>
+            <article class="faq-item">
+              <h3>DASHBOARD / WEEKLY / MONTHLY</h3>
+              <p>Tab laporan internal. Dipakai untuk baca ringkasan performa, bukan untuk edit transaksi harian.</p>
+            </article>
+          </div>
+
+          <div class="order-legend">
+            <strong>Yang berjalan otomatis di belakang layar:</strong>
+            <ul>
+              <li>Backup spreadsheet harian.</li>
+              <li>Archive log lama ke sheet archive bulanan.</li>
+              <li>Order website masuk otomatis ke sheet dan stok langsung berkurang.</li>
+              <li>Cancel order dari admin akan mengembalikan stok otomatis satu kali.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq-card card">
+      <div class="faq-copy">
+        <div class="mini-eyebrow">FAQ singkat</div>
+        <h2>Jawaban cepat untuk pertanyaan yang paling sering muncul.</h2>
+        <p>Bagian ini dibuat singkat supaya client tidak perlu membaca penjelasan panjang saat butuh jawaban cepat.</p>
+      </div>
+
+      <div class="faq-grid">
+        <article class="faq-item">
+          <h3>Apakah tiap hari harus buka Google Sheet?</h3>
+          <p>Tidak. Untuk operasional harian, client cukup pakai panel admin dan website. Google Sheet bekerja otomatis di belakang layar.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Kalau order dibatalkan, stok kembali?</h3>
+          <p>Ya. Saat order diubah ke status <strong>CANCEL</strong>, stok barang otomatis dikembalikan sekali ke produk terkait.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Kalau mau ganti harga, stok, berat, atau foto?</h3>
+          <p>Semua dilakukan dari form produk di panel admin. Setelah disimpan, sistem utama ikut terbarui.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Kapan Google Sheet dibuka?</h3>
+          <p>Biasanya hanya untuk cek data cadangan, audit, atau pemeriksaan internal. Bukan untuk kerja harian client.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Kalau ada order marketplace bagaimana?</h3>
+          <p>Masukkan dari section <strong>Catat Order Marketplace</strong> di panel admin. Jangan kurangi stok manual dari Google Sheet kalau section itu sudah dipakai.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Untuk apa halaman laporan?</h3>
+          <p>Halaman laporan dipakai untuk melihat omzet harian, mingguan, bulanan, barang paling laku, kategori terlaris, dan produk yang perlu restock.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Kalau muncul notifikasi sukses artinya apa?</h3>
+          <p>Artinya aksi admin sudah diproses sistem, misalnya produk tersimpan, order dicancel, payment diubah, atau riwayat berhasil dihapus.</p>
+        </article>
+        <article class="faq-item">
+          <h3>Apakah backup dan archive log harus dijalankan manual tiap hari?</h3>
+          <p>Tidak. Backup dan archive sudah bisa berjalan otomatis. Menu manual hanya dipakai saat perlu pengecekan atau test.</p>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer-credit card">
+      <div>
+        <strong>Manual Book Toko Vespa Jogja</strong><br>
+        Versi ini dibuat supaya operasional harian lebih cepat dipahami, terutama untuk user non-teknis.
+      </div>
+      <div>
+        <img src="./assets/branding/mowenn.png" alt="Mowenn Solutions">
+        <div style="margin-top: 8px; text-align: center;"><strong>Powered by Mowenn Solutions</strong></div>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "startedAt": "2026-04-23T15:02:59.826Z",
+  "baseUrl": "http://localhost:4173",
+  "timeoutProxyUrl": "http://localhost:4191",
+  "scenario": "admin cancel/delete timeout reconcile",
+  "beforeStock": {
+    "QA-TEST-001": 5,
+    "QA-TEST-002": 2
+  },
+  "orderCreate": {
+    "success": false,
+    "message": "Sistem sedang lambat, coba ulang beberapa detik lagi.",
+    "data": null,
+    "error": {
+      "code": "UPSTREAM_TIMEOUT",
+      "details": {
+        "route": "order",
+        "timeout_ms": 18000
+      }
+    },
+    "meta": null
+  },
+  "cancelResult": null,
+  "deleteResult": null,
+  "afterCreateStock": null,
+  "afterCancelStock": null,
+  "finalOrderLookup": null,
+  "status": "UNKNOWN",
+  "notes": [],
+  "finishedAt": "2026-04-23T15:04:13.816Z"
+}

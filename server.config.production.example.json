@@ -1,0 +1,7 @@
+{
+  "host": "0.0.0.0",
+  "port": 4173,
+  "publicOrigin": "https://tokovespajogja.store",
+  "appsScriptBaseUrl": "https://script.google.com/macros/s/AKfycbxV8rZB9MZaYU-cKYdXfFbJg7ACvf2OgZUUom5cNSGigTb3_SpMbNyBk7aiuX8M3MPu/exec",
+  "appsScriptTimeoutMs": 18000
+}

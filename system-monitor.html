@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kesehatan Sistem Toko Vespa Jogja</title>
+    <meta
+      name="description"
+      content="Panel kesehatan sistem Toko Vespa Jogja untuk memantau backend, backup, order flow, dan error log."
+    />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/png" href="assets/branding/stickertvj1.png" />
+    <link rel="stylesheet" href="admin.css" />
+    <link rel="stylesheet" href="system-monitor.css" />
+  </head>
+  <body class="admin-body monitor-body">
+    <div class="admin-shell monitor-shell">
+      <header class="admin-header">
+        <a class="admin-brand" href="admin.html" aria-label="Dashboard Admin Toko Vespa Jogja">
+          <span class="admin-brand-mark">TV</span>
+          <span class="admin-brand-copy">
+            <strong>Toko Vespa Jogja</strong>
+            <small>Kesehatan Sistem</small>
+          </span>
+        </a>
+
+        <div class="admin-header-actions">
+          <a class="admin-header-link" href="admin.html">Kelola Admin</a>
+          <a class="admin-header-link" href="reports.html">Lihat Laporan</a>
+          <a class="admin-header-link" href="index.html">Lihat Website</a>
+        </div>
+      </header>
+
+      <main class="admin-main">
+        <section class="access-card monitor-lock" id="monitor-lock" hidden>
+          <div class="access-copy">
+            <p class="eyebrow">Cek Sistem</p>
+            <h1>Masuk admin dulu untuk cek kesehatan sistem.</h1>
+            <p>
+              Halaman ini membaca status backend, backup, order flow, dan log error.
+              Gunakan login admin yang sama dengan panel katalog.
+            </p>
+          </div>
+
+          <div class="access-panel">
+            <span class="access-badge">Butuh login</span>
+            <h2>Login dari halaman admin utama.</h2>
+            <p>Buka panel admin, login, simpan token admin jika belum, lalu kembali ke sini.</p>
+            <a class="admin-button admin-button-primary" href="admin.html">
+              Masuk ke Panel Admin
+            </a>
+          </div>
+        </section>
+
+        <section class="monitor-dashboard" id="monitor-dashboard" hidden>
+          <section class="dashboard-card monitor-hero">
+            <div class="monitor-hero-copy">
+              <p class="eyebrow">System Monitor</p>
+              <h1>Kesehatan Sistem</h1>
+              <p>
+                Panel ini khusus untuk cek apakah proxy, Apps Script, backup,
+                order flow, dan log error masih aman.
+              </p>
+            </div>
+
+            <div class="monitor-hero-panel">
+              <span class="monitor-sync-label" id="monitor-sync-label">Menyiapkan status...</span>
+              <button class="admin-button admin-button-primary" id="refresh-monitor-button" type="button">
+                Refresh Cek Sistem
+              </button>
+              <p id="monitor-token-note">
+                Jika data belum tampil, pastikan token admin sudah tersimpan di halaman admin utama.
+              </p>
+            </div>
+          </section>
+
+          <section class="monitor-status-grid" aria-label="Status sistem">
+            <article class="monitor-status-card" id="status-proxy"></article>
+            <article class="monitor-status-card" id="status-apps-script"></article>
+            <article class="monitor-status-card" id="status-backup"></article>
+            <article class="monitor-status-card" id="status-reporting"></article>
+          </section>
+
+          <section class="monitor-layout">
+            <article class="dashboard-card monitor-card monitor-card-wide">
+              <div class="monitor-card-head">
+                <div>
+                  <p class="eyebrow">Alert Penting</p>
+                  <h2>Hal yang perlu dicek admin</h2>
+                </div>
+                <span id="alert-summary">Menunggu data...</span>
+              </div>
+              <div class="monitor-alert-list" id="monitor-alert-list"></div>
+            </article>
+
+            <article class="dashboard-card monitor-card">
+              <div class="monitor-card-head">
+                <div>
+                  <p class="eyebrow">Ringkasan Error / Log</p>
+                  <h2>Hari ini</h2>
+                </div>
+                <span id="log-summary-note">Dari API_LOG terbaru.</span>
+              </div>
+              <div class="monitor-summary-grid">
+                <article class="monitor-summary-card">
+                  <span>Total request</span>
+                  <strong id="summary-requests">0</strong>
+                </article>
+                <article class="monitor-summary-card">
+                  <span>Error hari ini</span>
+                  <strong id="summary-errors">0</strong>
+                </article>
+                <article class="monitor-summary-card">
+                  <span>Timeout</span>
+                  <strong id="summary-timeouts">0</strong>
+                </article>
+                <article class="monitor-summary-card">
+                  <span>Duplicate diblok</span>
+                  <strong id="summary-duplicates">0</strong>
+                </article>
+                <article class="monitor-summary-card">
+                  <span>Cancel review</span>
+                  <strong id="summary-cancel-review">0</strong>
+                </article>
+              </div>
+            </article>
+
+            <article class="dashboard-card monitor-card">
+              <div class="monitor-card-head">
+                <div>
+                  <p class="eyebrow">Rule Aktif</p>
+                  <h2>Ambang batas monitor</h2>
+                </div>
+                <span id="threshold-note">Rule ringan, bukan load test.</span>
+              </div>
+              <div class="threshold-list" id="threshold-list"></div>
+            </article>
+
+            <article class="dashboard-card monitor-card monitor-card-wide">
+              <div class="monitor-card-head">
+                <div>
+                  <p class="eyebrow">Riwayat Masalah Terakhir</p>
+                  <h2>Log ringkas yang perlu diperhatikan</h2>
+                </div>
+                <span id="issue-summary">Membaca log...</span>
+              </div>
+              <div class="monitor-table-wrap">
+                <table class="product-table monitor-table">
+                  <thead>
+                    <tr>
+                      <th>Waktu</th>
+                      <th>Sumber</th>
+                      <th>Jenis</th>
+                      <th>Severity</th>
+                      <th>Catatan</th>
+                    </tr>
+                  </thead>
+                  <tbody id="issue-table-body"></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+
+          <p class="sr-only" id="monitor-status" aria-live="polite"></p>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="system-monitor.js"></script>
+  </body>
+</html>

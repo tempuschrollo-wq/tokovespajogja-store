@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Toko Vespa Jogja | Sparepart Vespa Jogja</title>
+    <meta
+      name="description"
+      content="Toko Vespa Jogja menghadirkan katalog sparepart Vespa yang cepat dicari, nyaman dibuka dari HP, dan siap dipakai untuk retail maupun grosir."
+    />
+    <link rel="canonical" href="https://tokovespajogja.store/" />
+    <meta property="og:url" content="https://tokovespajogja.store/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      document.documentElement.classList.add("js-enabled");
+    </script>
+    <link rel="icon" type="image/png" href="assets/branding/stickertvj1.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="#top" aria-label="Toko Vespa Jogja">
+          <img
+            class="brand-sticker brand-sticker-main"
+            src="assets/branding/stickertvj4.png"
+            alt="Sticker Toko Vespa Jogja"
+          />
+          <span class="brand-copy">
+            <strong>Toko Vespa Jogja</strong>
+            <small>Party Garage | Onderdil Vespa Jogja</small>
+          </span>
+        </a>
+
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="site-nav"
+        >
+          Menu
+        </button>
+
+        <nav class="site-nav" id="site-nav">
+          <a href="#katalog">Katalog</a>
+          <a href="#marketplace">Marketplace</a>
+          <a href="#kontak">Kontak</a>
+          <a href="admin.html">Masuk Admin</a>
+        </nav>
+
+        <a class="header-cta" id="cart-link" href="#keranjang">
+          Keranjang
+          <span class="header-cta-count" id="header-cart-count">0</span>
+        </a>
+      </header>
+
+      <main id="top">
+        <section class="hero section reveal">
+          <div class="hero-search-panel">
+            <p class="eyebrow">Toko Vespa Jogja | Party Garage</p>
+
+            <div class="hero-pill-row" aria-label="Keunggulan utama">
+              <span class="hero-pill">Toko fisik di Jogja</span>
+              <span class="hero-pill">Ready stock harian</span>
+              <span class="hero-pill">Retail & grosir</span>
+            </div>
+
+            <h1>Cari sparepart Vespa, cek stok, lalu masuk keranjang tanpa ribet.</h1>
+
+            <p class="hero-lead">
+              Fokusnya langsung ke etalase: pencarian di depan, produk tampil
+              rapat, dan customer dari HP bisa cepat pindah dari cari ke order.
+            </p>
+
+            <form class="hero-search" id="hero-search-form">
+              <label class="search-field" for="hero-search-input">
+                <span class="search-label">Cari Nama Part / SKU / Model Vespa</span>
+                <input
+                  id="hero-search-input"
+                  type="search"
+                  placeholder="Contoh: karburator, shock, JVS-0012, PX..."
+                  autocomplete="off"
+                />
+              </label>
+              <button class="button button-primary" type="submit">
+                Cari Produk
+              </button>
+            </form>
+
+            <div class="hero-suggestions">
+              <span class="hero-suggestions-label">Pencarian cepat:</span>
+              <button class="quick-search" type="button" data-query="karburator">
+                Karburator
+              </button>
+              <button class="quick-search" type="button" data-query="shock">
+                Shock
+              </button>
+              <button class="quick-search" type="button" data-query="emblem">
+                Emblem
+              </button>
+              <button class="quick-search" type="button" data-query="excel">
+                Vespa Excel
+              </button>
+            </div>
+
+          </div>
+
+          <div class="hero-market" aria-label="Produk unggulan di halaman depan">
+            <div class="hero-market-head">
+              <div>
+                <span class="mini-tag">Produk Unggulan</span>
+                <h2>Barang yang paling sering dicari hari ini.</h2>
+              </div>
+              <p class="hero-market-meta">
+                <span id="hero-source-label">Inventori aktif</span>
+                <strong id="hero-last-updated">-</strong>
+              </p>
+            </div>
+
+            <div class="hero-featured-grid" id="hero-featured-grid"></div>
+
+            <div class="hero-sticker-row" aria-hidden="true">
+              <img src="assets/branding/stickertvj1.png" alt="" class="compact-sticker compact-sticker-main" />
+              <img src="assets/branding/stickertvj5.png" alt="" class="compact-sticker" />
+              <img src="assets/branding/stickertvj3.png" alt="" class="compact-sticker" />
+              <img src="assets/branding/stickertvj2.png" alt="" class="compact-sticker" />
+            </div>
+          </div>
+
+          <div class="hero-banner-wrap">
+            <div class="hero-banner-card">
+              <img
+                class="hero-banner-image"
+                src="assets/branding/bannertvj-optimized.png"
+                alt="Banner Toko Vespa Jogja"
+                width="2400"
+                height="454"
+                decoding="async"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="section catalog-section reveal" id="katalog">
+          <div class="section-heading catalog-heading">
+            <div>
+              <p class="eyebrow">Katalog Sparepart</p>
+              <h2>Langsung masuk produk, tanpa filter yang bikin ribet.</h2>
+            </div>
+            <div class="catalog-meta">
+              <span class="catalog-pill">Katalog aktif</span>
+              <strong id="product-count">Memuat katalog...</strong>
+            </div>
+          </div>
+
+          <div class="catalog-toolbar">
+            <div class="toolbar-main">
+              <label class="search-field search-field-wide" for="catalog-search">
+                <span class="search-label">Cari Part / SKU / Model Vespa</span>
+                <input
+                  id="catalog-search"
+                  type="search"
+                  placeholder="Contoh: piston, JVS-0003, super, lampu..."
+                  autocomplete="off"
+                />
+              </label>
+
+              <button class="button button-primary" id="apply-search" type="button">
+                Cari
+              </button>
+
+              <button class="button button-secondary" id="reset-search" type="button">
+                Reset
+              </button>
+            </div>
+
+            <div class="results-head">
+              <div>
+                <strong id="result-summary">Memuat data produk...</strong>
+                <p id="active-filter-text">
+                  Inventori aktif sedang disiapkan dari katalog toko.
+                </p>
+              </div>
+              <span id="visible-count">0 item</span>
+            </div>
+          </div>
+
+          <p class="sr-only" id="catalog-status" aria-live="polite"></p>
+          <div class="product-grid" id="product-grid"></div>
+
+          <div class="empty-state" id="empty-state" hidden>
+            <strong>Produk tidak ditemukan.</strong>
+            <p>
+              Coba kata kunci lain. Bisa pakai nama part, SKU, atau model
+              Vespanya.
+            </p>
+          </div>
+
+          <div class="load-more-wrap">
+            <button class="button button-primary" id="load-more-button" type="button">
+              Tampilkan Lebih Banyak
+            </button>
+          </div>
+        </section>
+
+        <section class="section cart-section reveal" id="keranjang">
+          <div class="section-heading cart-heading">
+            <div>
+              <p class="eyebrow">Keranjang Belanja</p>
+              <h2>Masuk keranjang dulu, closing belakangan.</h2>
+            </div>
+            <p class="section-note">
+              Klik produk yang ready stock untuk masuk ke keranjang, lalu lanjut
+              ke WhatsApp saat pesanan sudah siap.
+            </p>
+          </div>
+
+          <div class="cart-layout">
+            <div class="cart-list" id="cart-list"></div>
+
+            <aside class="cart-summary-card">
+              <div class="cart-summary-row">
+                <span>Total item</span>
+                <strong id="cart-item-total">0 item</strong>
+              </div>
+              <div class="cart-summary-row">
+                <span>Subtotal produk</span>
+                <strong id="cart-total">Rp 0</strong>
+              </div>
+              <p class="cart-summary-note" id="cart-summary-note">
+                Keranjang masih kosong. Harga produk belum termasuk ongkir.
+              </p>
+
+              <form class="checkout-form" id="checkout-form">
+                <label class="checkout-field" for="checkout-name">
+                  <span>Nama customer</span>
+                  <input
+                    id="checkout-name"
+                    type="text"
+                    placeholder="Nama penerima"
+                    autocomplete="name"
+                  />
+                </label>
+
+                <label class="checkout-field" for="checkout-whatsapp">
+                  <span>Nomor WhatsApp</span>
+                  <input
+                    id="checkout-whatsapp"
+                    type="tel"
+                    placeholder="08xxxxxxxxxx"
+                    autocomplete="tel"
+                  />
+                </label>
+
+                <label class="checkout-field" for="checkout-address">
+                  <span>Alamat lengkap + kecamatan</span>
+                  <textarea
+                    id="checkout-address"
+                    rows="3"
+                    placeholder="Alamat lengkap tujuan kirim"
+                  ></textarea>
+                </label>
+
+                <div class="shipping-origin-card">
+                  <div class="shipping-origin-head">
+                    <img
+                      class="shipping-origin-icon"
+                      src="assets/branding/stickertvj1.png"
+                      alt="Icon Toko Vespa Jogja"
+                    />
+                    <div>
+                      <strong>Titik kirim Party Garage</strong>
+                      <p>
+                        Jl. Selokan Mataram, Kadirojo I, Purwomartani, Kec. Kalasan,
+                        Kabupaten Sleman, Daerah Istimewa Yogyakarta 55571.
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    class="shipping-origin-link"
+                    href="https://www.google.com/maps?q=Party+Garage+(TOKO+VESPA+JOGJA),+Jl.+Selokan+Mataram,+Kadirojo+I,+Purwomartani,+Kec.+Kalasan,+Kabupaten+Sleman,+Daerah+Istimewa+Yogyakarta+55571&ftid=0x2e7af905412b9b4f:0x8db69b72f27559aa&entry=gps&lucs=,94207805,47071704,94206167,47069508,94218641,94203019,47084304&g_ep=CAISDTYuMTMwLjEuODIwNzAYACDXggMqPyw5NDIwNzgwNSw0NzA3MTcwNCw5NDIwNjE2Nyw0NzA2OTUwOCw5NDIxODY0MSw5NDIwMzAxOSw0NzA4NDMwNEICSUQ%3D&g_st=ic"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    Lihat titik kirim di Google Maps
+                  </a>
+                </div>
+
+                <button
+                  class="button button-primary checkout-link is-disabled"
+                  id="checkout-button"
+                  type="submit"
+                  disabled
+                >
+                  Kirim Order Sekarang
+                </button>
+              </form>
+
+              <p class="checkout-feedback" id="checkout-feedback" aria-live="polite"></p>
+
+              <a
+                class="button button-secondary"
+                id="whatsapp-followup-link"
+                href="#keranjang"
+                target="_blank"
+                rel="noopener"
+                hidden
+              >
+                Lanjut Konfirmasi ke WhatsApp
+              </a>
+
+              <button class="button button-secondary" id="clear-cart" type="button">
+                Kosongkan Keranjang
+              </button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="section marketplace-section reveal" id="kontak">
+          <div class="section-heading marketplace-heading compact-heading">
+            <div>
+              <p class="eyebrow">Kontak & Marketplace</p>
+              <h2>Pilih jalur order yang paling nyaman buat customer.</h2>
+            </div>
+            <p class="section-note">
+              Chat admin, cek marketplace, atau buka lokasi toko tanpa layout
+              yang terlalu ramai.
+            </p>
+          </div>
+
+          <div class="marketplace-layout marketplace-layout-compact">
+            <article class="store-card store-card-soft">
+              <div class="store-sticker-row" aria-hidden="true">
+                <img src="assets/branding/stickertvj1.png" alt="" class="compact-sticker compact-sticker-main" />
+                <img src="assets/branding/stickertvj5.png" alt="" class="compact-sticker" />
+                <img src="assets/branding/stickertvj3.png" alt="" class="compact-sticker" />
+                <img src="assets/branding/stickertvj2.png" alt="" class="compact-sticker" />
+              </div>
+
+              <span class="mini-tag has-sticker">
+                <img
+                  class="mini-tag-sticker"
+                  src="assets/branding/stickertvj1.png"
+                  alt=""
+                />
+                Toko Fisik
+              </span>
+              <h3>Toko Vespa Jogja</h3>
+              <p class="store-full-address">
+                Party Garage (Toko Vespa Jogja), Jl. Selokan Mataram, Kadirojo I,
+                Purwomartani, Kec. Kalasan, Kabupaten Sleman, Daerah Istimewa
+                Yogyakarta 55571.
+              </p>
+
+              <div class="store-origin-note">
+                <strong>Titik pengiriman paket</strong>
+                <p>
+                  Harga produk di website belum termasuk ongkir. Ongkir final akan
+                  dikonfirmasi admin setelah alamat tujuan dicek.
+                </p>
+              </div>
+
+              <div class="store-links">
+                <a
+                  class="store-link"
+                  href="https://api.whatsapp.com/send/?phone=%2B6288802500388&text&type=phone_number&app_absent=0"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Chat WhatsApp
+                </a>
+                <a
+                  class="store-link"
+                  href="https://www.google.com/maps?q=Party+Garage+(TOKO+VESPA+JOGJA),+Jl.+Selokan+Mataram,+Kadirojo+I,+Purwomartani,+Kec.+Kalasan,+Kabupaten+Sleman,+Daerah+Istimewa+Yogyakarta+55571&ftid=0x2e7af905412b9b4f:0x8db69b72f27559aa&entry=gps&lucs=,94207805,47071704,94206167,47069508,94218641,94203019,47084304&g_ep=CAISDTYuMTMwLjEuODIwNzAYACDXggMqPyw5NDIwNzgwNSw0NzA3MTcwNCw5NDIwNjE2Nyw0NzA2OTUwOCw5NDIxODY0MSw5NDIwMzAxOSw0NzA4NDMwNEICSUQ%3D&g_st=ic"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Buka Google Maps
+                </a>
+              </div>
+            </article>
+
+            <div class="marketplace-side">
+              <div class="marketplace-list" aria-label="Daftar channel order dan sosial media">
+                <a
+                  class="marketplace-row"
+                  href="https://api.whatsapp.com/send/?phone=%2B6288802500388&text&type=phone_number&app_absent=0"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img src="assets/icons/whatsapp.png" alt="WhatsApp" />
+                  <div class="marketplace-row-copy">
+                    <strong>WhatsApp</strong>
+                    <span>Chat langsung untuk tanya stok dan order cepat</span>
+                  </div>
+                  <span class="marketplace-row-tag">Buka</span>
+                </a>
+                <a
+                  class="marketplace-row"
+                  href="https://shopee.co.id/partygarage?mmp_pid=an_11358540745&uls_trackid=55faj09l026l&utm_campaign=-&utm_content=product&utm_medium=affiliates&utm_source=an_11358540745&utm_term=esd2nin1keuu"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img src="assets/icons/shopee.png" alt="Shopee" />
+                  <div class="marketplace-row-copy">
+                    <strong>Shopee</strong>
+                    <span>Checkout lewat toko resmi Shopee</span>
+                  </div>
+                  <span class="marketplace-row-tag">Buka</span>
+                </a>
+                <a
+                  class="marketplace-row"
+                  href="https://www.tokopedia.com/partygarage?aff_unique_id=VjgAA7a-YnTM8-Fw3Ka8JN5oQ2eCH3SBLEpL_sptR1rkd-oWAjGg1tPP606HGPXIZLg%3D&channel=others&_branch_match_id=1393927041289602488&utm_source=others&utm_campaign=affiliateshare-shop-VjgAA7a-YnTM8-Fw3Ka8JN5oQ2eCH3SBLEpL_sptR1rkd-oWAjGg1tPP606HGPXIZLg%253D-0-0-110924&utm_medium=affiliate-share&_branch_referrer=H4sIAAAAAAAAA8soKSkottLXL8nPzi9ITclM1MvJzMvWL0sOyHXzSvX39U2yrytKTUstKsrMS49PKsovL04tsnXOKMrPTQUATcKVfzwAAAA%3D"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img src="assets/icons/tokopedia.png" alt="Tokopedia" />
+                  <div class="marketplace-row-copy">
+                    <strong>Tokopedia</strong>
+                    <span>Cek etalase Tokopedia untuk belanja via marketplace</span>
+                  </div>
+                  <span class="marketplace-row-tag">Buka</span>
+                </a>
+                <a
+                  class="marketplace-row"
+                  href="https://www.instagram.com/partygarage.id?utm_medium=copy_link"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img src="assets/icons/instagram.png" alt="Instagram" />
+                  <div class="marketplace-row-copy">
+                    <strong>Instagram</strong>
+                    <span>Lihat update produk dan aktivitas toko</span>
+                  </div>
+                  <span class="marketplace-row-tag">Buka</span>
+                </a>
+                <a
+                  class="marketplace-row"
+                  href="https://www.facebook.com/profile.php?id=100072034242791&mibextid=ZbWKwL"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img src="assets/icons/facebook.png" alt="Facebook" />
+                  <div class="marketplace-row-copy">
+                    <strong>Facebook</strong>
+                    <span>Lihat informasi dan postingan toko di Facebook</span>
+                  </div>
+                  <span class="marketplace-row-tag">Buka</span>
+                </a>
+                <a
+                  class="marketplace-row"
+                  href="https://www.tiktok.com/@tokovespajogja?_t=8pvgj2hx0ia&_r=1"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img src="assets/icons/tiktok.png" alt="TikTok" />
+                  <div class="marketplace-row-copy">
+                    <strong>TikTok</strong>
+                    <span>Lihat video produk dan update toko</span>
+                  </div>
+                  <span class="marketplace-row-tag">Buka</span>
+                </a>
+                <a
+                  class="marketplace-row"
+                  href="https://www.google.com/maps?q=Party+Garage+(TOKO+VESPA+JOGJA),+Jl.+Selokan+Mataram,+Kadirojo+I,+Purwomartani,+Kec.+Kalasan,+Kabupaten+Sleman,+Daerah+Istimewa+Yogyakarta+55571&ftid=0x2e7af905412b9b4f:0x8db69b72f27559aa&entry=gps&lucs=,94207805,47071704,94206167,47069508,94218641,94203019,47084304&g_ep=CAISDTYuMTMwLjEuODIwNzAYACDXggMqPyw5NDIwNzgwNSw0NzA3MTcwNCw5NDIwNjE2Nyw0NzA2OTUwOCw5NDIxODY0MSw5NDIwMzAxOSw0NzA4NDMwNEICSUQ%3D&g_st=ic"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img src="assets/icons/gmaps.png" alt="Google Maps" />
+                  <div class="marketplace-row-copy">
+                    <strong>Google Maps</strong>
+                    <span>Buka rute ke toko fisik Toko Vespa Jogja</span>
+                  </div>
+                  <span class="marketplace-row-tag">Buka</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>
+          &copy; <span id="year"></span> Toko Vespa Jogja. Marketplace
+          sparepart Vespa Jogja.
+        </p>
+        <div class="footer-meta">
+          <a href="admin.html">Login Admin</a>
+          <a href="#top">Kembali ke atas</a>
+          <p class="footer-credit">
+            Website by
+            <a href="https://mowenn.solutions" target="_blank" rel="noopener">
+              mowenn.solutions
+            </a>
+          </p>
+        </div>
+      </footer>
+    </div>
+
+    <div class="order-success-modal" id="order-success-modal" hidden>
+      <div class="order-success-backdrop" data-order-modal-close></div>
+      <section
+        class="order-success-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="order-success-title"
+      >
+        <span class="order-success-badge">Order Masuk</span>
+        <h2 id="order-success-title">Order berhasil dibuat</h2>
+        <p class="order-success-copy" id="order-success-copy">
+          Pesanan kamu sudah tercatat di sistem Toko Vespa Jogja.
+        </p>
+
+        <div class="order-success-grid">
+          <article class="order-success-metric order-success-metric-id">
+            <span>Order ID</span>
+            <strong id="order-success-id">-</strong>
+          </article>
+          <article class="order-success-metric">
+            <span>Jumlah item</span>
+            <strong id="order-success-items">0 item</strong>
+          </article>
+          <article class="order-success-metric">
+            <span>Total saat ini</span>
+            <strong id="order-success-total">Rp0</strong>
+          </article>
+        </div>
+
+        <div class="order-success-actions">
+          <button
+            class="button button-primary"
+            id="order-success-whatsapp-button"
+            type="button"
+          >
+            Lanjut ke WhatsApp
+          </button>
+          <button
+            class="button button-secondary"
+            id="order-success-close-button"
+            type="button"
+          >
+            Nanti Saja
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="site.js"></script>
+  </body>
+</html>
