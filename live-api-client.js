@@ -78,13 +78,15 @@ export const createWebsiteOrder = async ({
   shippingNote = ""
 }) => {
   const requestBody = {
-    customer_name: customerName,
-    customer_whatsapp: customerWhatsApp,
-    customer_address: customerAddress,
-    items,
-    ongkir: shippingAmount,
-    shipping_note: shippingNote
-  }
+  customer_nama: customerName,
+  customer_name: customerName,
+  customer_whatsapp: customerWhatsApp,
+  customer_alamat: customerAddress,
+  customer_address: customerAddress,
+  items,
+  ongkir: shippingAmount,
+  shipping_note: shippingNote
+}
 
   const payload = await fetchJson(`${API_BASE}/order`, {
     method: "POST",
