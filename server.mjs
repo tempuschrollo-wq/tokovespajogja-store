@@ -167,26 +167,36 @@ async function handleApiRequest(request, response, requestUrl) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/admin/product/create") {
-    const body = await readJsonBody_(request)
-    const payload = await fetchAppsScriptJson_("admin/product/create", body)
-    invalidateInventoryCacheOnSuccess_(payload)
-    writeJson(response, 200, payload)
+    writeJson(response, 200, {
+      success: false,
+      message: "Admin product create belum diimplementasikan di Apps Script.",
+      data: null,
+      error: {
+        code: "NOT_IMPLEMENTED",
+        details: "admin/product/create"
+      }
+    })
     return
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/admin/product/update") {
     const body = await readJsonBody_(request)
-    const payload = await fetchAppsScriptJson_("admin/product/update", body)
+    const payload = await fetchAppsScriptJson_("admin/products/update", body)
     invalidateInventoryCacheOnSuccess_(payload)
     writeJson(response, 200, payload)
     return
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/admin/product/delete") {
-    const body = await readJsonBody_(request)
-    const payload = await fetchAppsScriptJson_("admin/product/delete", body)
-    invalidateInventoryCacheOnSuccess_(payload)
-    writeJson(response, 200, payload)
+    writeJson(response, 200, {
+      success: false,
+      message: "Admin product delete belum diimplementasikan di Apps Script.",
+      data: null,
+      error: {
+        code: "NOT_IMPLEMENTED",
+        details: "admin/product/delete"
+      }
+    })
     return
   }
 
@@ -307,8 +317,8 @@ async function fetchAllProducts_() {
     return firstPayload
   }
 
-  const products = Array.isArray(firstPayload.data) ? [...firstPayload.data] : []
-  const totalPages = Number(firstPayload.meta?.total_pages || 1)
+  const products = [...extractProductsFromPayload_(firstPayload)]
+  const totalPages = extractTotalPagesFromPayload_(firstPayload)
 
   if (totalPages > 1) {
     const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2)
@@ -323,7 +333,7 @@ async function fetchAllProducts_() {
         return payload
       }
 
-      const pageItems = Array.isArray(payload.data) ? payload.data : []
+      const pageItems = extractProductsFromPayload_(payload)
       products.push(...pageItems)
     }
   }
@@ -351,6 +361,28 @@ function buildProductPageParams_(page, limit) {
     page: String(page),
     limit: String(limit)
   })
+}
+
+function extractProductsFromPayload_(payload) {
+  if (Array.isArray(payload?.data)) {
+    return payload.data
+  }
+
+  if (Array.isArray(payload?.data?.products)) {
+    return payload.data.products
+  }
+
+  return []
+}
+
+function extractTotalPagesFromPayload_(payload) {
+  const totalPages =
+    payload?.data?.total_pages ??
+    payload?.meta?.total_pages ??
+    payload?.meta?.totalPages ??
+    1
+  const parsed = Number(totalPages)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
 }
 
 async function getCachedPayload_(key, ttlMs, factory) {
