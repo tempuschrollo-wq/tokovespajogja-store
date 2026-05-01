@@ -331,9 +331,13 @@ const openLastOrderWhatsApp = () => {
 }
 
 const applyCatalogSnapshot = (catalog) => {
-  if (!catalog || !Array.isArray(catalog.products)) {
+  const realCatalog = catalog?.data?.products ? catalog.data : catalog
+
+  if (!realCatalog || !Array.isArray(realCatalog.products)) {
     return false
   }
+
+  state.products = realCatalog.products
 
   state.products = catalog.products
   state.productLookup = makeProductLookup(catalog.products)
@@ -1057,7 +1061,7 @@ const init = async () => {
 
     void fetchLiveCatalog()
       .then((catalog) => {
-        applyCatalogSnapshot(catalog)
+  applyCatalogSnapshot(catalog.data)
         statusLiveRegion.textContent =
           "Inventori live berhasil diperbarui dari Google Sheet."
       })
