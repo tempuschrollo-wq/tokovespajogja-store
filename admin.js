@@ -1156,18 +1156,65 @@ const updateDashboardHeadings = () => {
     : "Isi token admin browser dulu sebelum menyimpan perubahan produk atau memproses order."
 }
 
-const renderSummary = () => {
-  const summary = state.dashboardSummary || {
-    total_produk_aktif: state.products.length,
-    ready_stock: state.products.filter((product) => product.availability === "ready").length,
-    out_of_stock: state.products.filter((product) => product.availability === "out").length,
-    total_stok_unit: state.products.reduce((total, product) => total + product.stock, 0)
+const getNumericSummaryValue = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") {
+      continue
+    }
+
+    const numberValue = Number(value)
+    if (Number.isFinite(numberValue)) {
+      return numberValue
+    }
   }
 
-  summaryTotalProducts.textContent = formatItemCount(summary.total_produk_aktif || 0)
-  summaryReadyProducts.textContent = formatItemCount(summary.ready_stock || 0)
-  summaryOutProducts.textContent = formatItemCount(summary.out_of_stock || 0)
-  summaryStockUnits.textContent = formatItemCount(summary.total_stok_unit || 0)
+  return null
+}
+
+const buildProductSummary = () => {
+  const catalogSummary = {
+    totalProduk: state.products.length,
+    readyStock: state.products.filter((product) => product.availability === "ready").length,
+    stockHabis: state.products.filter((product) => product.availability === "out").length,
+    totalStokUnit: state.products.reduce((total, product) => total + Number(product.stock || 0), 0)
+  }
+  const liveSummary = state.dashboardSummary || {}
+  const hasCatalogProducts = state.products.length > 0
+
+  return {
+    totalProduk: hasCatalogProducts
+      ? catalogSummary.totalProduk
+      : (getNumericSummaryValue(
+          liveSummary.total_produk_aktif,
+          liveSummary.totalProdukAktif,
+          liveSummary.total_sku,
+          liveSummary.totalSku
+        ) ?? catalogSummary.totalProduk),
+    readyStock: hasCatalogProducts
+      ? catalogSummary.readyStock
+      : (getNumericSummaryValue(liveSummary.ready_stock, liveSummary.ready, liveSummary.READY) ??
+        catalogSummary.readyStock),
+    stockHabis: hasCatalogProducts
+      ? catalogSummary.stockHabis
+      : (getNumericSummaryValue(
+          liveSummary.out_of_stock,
+          liveSummary.outOfStock,
+          liveSummary.OUT_OF_STOCK
+        ) ?? catalogSummary.stockHabis),
+    totalStokUnit: hasCatalogProducts
+      ? catalogSummary.totalStokUnit
+      : (getNumericSummaryValue(liveSummary.total_stok_unit, liveSummary.totalStokUnit) ??
+        catalogSummary.totalStokUnit)
+  }
+}
+
+const renderSummary = () => {
+  const summary = buildProductSummary()
+
+  summaryTotalProducts.textContent = formatItemCount(summary.totalProduk)
+  summaryReadyProducts.textContent = formatItemCount(summary.readyStock)
+  summaryOutProducts.textContent = formatItemCount(summary.stockHabis)
+  summaryStockUnits.textContent = formatItemCount(summary.totalStokUnit)
   updateDashboardHeadings()
   refreshConnectorState()
 }
