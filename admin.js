@@ -1179,11 +1179,21 @@ const getOrderStatusClass = (value) => {
     return "ready"
   }
 
-  if (normalized === "cancel" || normalized === "unpaid") {
+  if (isCancelledOrderStatus(value) || normalized === "unpaid") {
     return "out"
   }
 
   return "pending"
+}
+
+const isCancelledOrderStatus = (value) => {
+  const normalized = normalizeText(value)
+  return (
+    normalized === "cancel" ||
+    normalized === "cancelled" ||
+    normalized === "canceled" ||
+    normalized === "dibatalkan"
+  )
 }
 
 const getOrderMetaValue = (key, fallback = 0) =>
@@ -1347,8 +1357,9 @@ const buildOrderActions = (order) => {
   const actions = []
   const paymentStatus = normalizeText(order.payment_status)
   const statusOrder = normalizeText(order.status_order)
+  const isCancelled = isCancelledOrderStatus(order.status_order)
 
-  if (statusOrder !== "cancel") {
+  if (!isCancelled) {
     actions.push(`
       <button class="row-action" type="button" data-order-action="toggle-payment" data-order-id="${escapeHtml(
         order.order_id
@@ -1376,7 +1387,7 @@ const buildOrderActions = (order) => {
     `)
   }
 
-  if (statusOrder !== "cancel") {
+  if (!isCancelled) {
     actions.push(`
       <button class="row-action danger" type="button" data-order-action="cancel" data-order-id="${escapeHtml(
         order.order_id

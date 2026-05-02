@@ -524,7 +524,7 @@ async function reconcileAdminOrderAction_({ orderId, action }) {
       continue
     }
 
-    if (action === "cancel" && normalizeText(order?.status_order) === "cancel") {
+    if (action === "cancel" && isCancelledOrderStatus_(order?.status_order)) {
       return {
         order_id: orderId,
         reconciled: true,
@@ -545,6 +545,16 @@ async function reconcileAdminOrderAction_({ orderId, action }) {
   }
 
   return null
+}
+
+function isCancelledOrderStatus_(value) {
+  const normalized = normalizeText(value)
+  return (
+    normalized === "cancel" ||
+    normalized === "cancelled" ||
+    normalized === "canceled" ||
+    normalized === "dibatalkan"
+  )
 }
 
 async function fetchAdminOrderById_(orderId) {
