@@ -107,8 +107,59 @@ const formatDateRange = (start, end) => `${formatLongDate(start)} - ${formatLong
 
 const isBetween = (date, start, end) => date >= start && date <= end
 
+const getOrderValue = (order, keys, fallback = "") => {
+  for (const key of keys) {
+    if (order?.[key] !== undefined && order?.[key] !== null && order?.[key] !== "") {
+      return order[key]
+    }
+  }
+
+  return fallback
+}
+
+const toNumber = (value) => {
+  const numberValue = Number(value || 0)
+  return Number.isFinite(numberValue) ? numberValue : 0
+}
+
+const parseOrderItems = (order) => {
+  let rawItems = getOrderValue(order, ["items", "Items", "item_json", "Item_JSON"], [])
+
+  if (typeof rawItems === "string") {
+    try {
+      rawItems = JSON.parse(rawItems)
+    } catch {
+      rawItems = []
+    }
+  }
+
+  if (!Array.isArray(rawItems)) {
+    return []
+  }
+
+  return rawItems.map((item) => {
+    const qty = toNumber(getOrderValue(item, ["qty", "Qty", "quantity", "Qty_Total"], 0))
+    const price = toNumber(
+      getOrderValue(item, ["harga_jual", "Harga_Jual", "price", "Harga_Jual_Satuan"], 0)
+    )
+    const subtotal =
+      toNumber(getOrderValue(item, ["subtotal", "Subtotal", "line_total", "Line_Total"], 0)) ||
+      qty * price
+
+    return {
+      ...item,
+      sku: String(getOrderValue(item, ["sku", "SKU"], "")).trim(),
+      nama_produk: String(getOrderValue(item, ["nama_produk", "Nama_Produk", "name"], "")).trim(),
+      qty,
+      harga_jual: price,
+      subtotal
+    }
+  })
+}
+
 const parseOrderDate = (order) => {
-  const rawValue = String(order.created_at || order.order_date || "").trim()
+  const rawDate = getOrderValue(order, ["created_at", "Created_At", "order_date", "Order_Date"], "")
+  const rawValue = String(rawDate || "").trim()
 
   if (!rawValue) {
     return null
@@ -135,25 +186,30 @@ const parseOrderDate = (order) => {
 }
 
 const normalizeOrder = (order) => {
-  const items = Array.isArray(order.items) ? order.items : []
-  const itemSubtotal = items.reduce((total, item) => total + Number(item.subtotal || 0), 0)
+  const items = parseOrderItems(order)
+  const itemSubtotal = items.reduce((total, item) => total + toNumber(item.subtotal), 0)
   const qtyTotal =
-    Number(order.qty_total || 0) ||
-    items.reduce((total, item) => total + Number(item.qty || 0), 0)
+    toNumber(getOrderValue(order, ["qty_total", "Qty_Total"], 0)) ||
+    items.reduce((total, item) => total + toNumber(item.qty), 0)
+  const subtotal = toNumber(getOrderValue(order, ["subtotal", "Subtotal"], 0))
+  const grandTotal = toNumber(getOrderValue(order, ["grand_total", "Grand_Total"], 0))
 
   return {
     ...order,
     items,
     orderDate: parseOrderDate(order),
-    statusOrder: String(order.status_order || "").trim().toUpperCase(),
-    paymentStatus: String(order.payment_status || "").trim().toUpperCase(),
+    statusOrder: String(getOrderValue(order, ["status_order", "Status_Order"], "")).trim().toUpperCase(),
+    paymentStatus: String(getOrderValue(order, ["payment_status", "Payment_Status"], "")).trim().toUpperCase(),
     qtyTotal,
-    productRevenue: Number(order.subtotal || 0) || itemSubtotal || Number(order.grand_total || 0),
-    grandTotal: Number(order.grand_total || 0) || Number(order.subtotal || 0) || itemSubtotal
+    productRevenue: grandTotal || subtotal || itemSubtotal,
+    grandTotal: grandTotal || subtotal || itemSubtotal
   }
 }
 
-const isActiveOrder = (order) => normalizeText(order.statusOrder) !== "cancel"
+const isActiveOrder = (order) => {
+  const status = normalizeText(order.statusOrder)
+  return !["cancel", "cancelled", "canceled", "dibatalkan", "deleted"].includes(status)
+}
 
 const makeProductSkuMap = (products) =>
   new Map(products.map((product) => [String(product.sku || "").toUpperCase(), product]))

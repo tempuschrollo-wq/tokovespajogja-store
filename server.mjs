@@ -281,11 +281,12 @@ async function handleApiRequest(request, response, requestUrl) {
     if (payload?.success) {
       payload.data = {
         ...(payload.data || {}),
+        api_proxy_status: "ACTIVE",
         status_cards: {
           ...(payload.data?.status_cards || {}),
           proxy: {
             status: "HEALTHY",
-            label: "Aktif",
+            label: "ACTIVE",
             detail: "Proxy Node menjawab dan berhasil menghubungi Apps Script.",
             latency_ms: latencyMs,
             checked_at: new Date().toISOString()
