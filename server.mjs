@@ -14,7 +14,7 @@ const HOST = process.env.HOST || localConfig.host || "0.0.0.0"
 const APPS_SCRIPT_BASE_URL =
   process.env.TVJ_APPS_SCRIPT_URL || localConfig.appsScriptBaseUrl || ""
 const APPS_SCRIPT_TIMEOUT_MS = Number(
-  process.env.TVJ_APPS_SCRIPT_TIMEOUT_MS || localConfig.appsScriptTimeoutMs || 18_000
+  process.env.TVJ_APPS_SCRIPT_TIMEOUT_MS || localConfig.appsScriptTimeoutMs || 35_000
 )
 const PUBLIC_ORIGIN = process.env.TVJ_PUBLIC_ORIGIN || localConfig.publicOrigin || ""
 

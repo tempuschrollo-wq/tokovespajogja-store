@@ -13,7 +13,7 @@ module.exports = {
         TVJ_PUBLIC_ORIGIN: "https://tokovespajogja.store",
         TVJ_APPS_SCRIPT_URL:
           "https://script.google.com/macros/s/AKfycbxV8rZB9MZaYU-cKYdXfFbJg7ACvf2OgZUUom5cNSGigTb3_SpMbNyBk7aiuX8M3MPu/exec",
-        TVJ_APPS_SCRIPT_TIMEOUT_MS: "18000"
+        TVJ_APPS_SCRIPT_TIMEOUT_MS: "35000"
       }
     }
   ]
