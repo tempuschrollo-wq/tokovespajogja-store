@@ -451,6 +451,7 @@ export const buildOrderFollowupLink = ({
 }
 
 function mapApiProductToCatalog(product, index) {
+  const stockStatus = normalizeText(product.status_stok).replace(/[_-]+/g, " ")
   return hydrateProduct(
     {
       id: product.product_id || product.sku || `live-${index + 1}`,
@@ -462,7 +463,7 @@ function mapApiProductToCatalog(product, index) {
       stock: Number(product.stok_aktif || 0),
       minimumStock: Number(product.minimum_stok || 1),
       stockStatus: product.status_stok || "",
-      status: normalizeText(product.status_stok) === "out of stock" ? "out" : "ready",
+      status: stockStatus === "out of stock" ? "out" : "ready",
       price: Number(product.harga_jual || 0),
       costPrice: Number(product.harga_modal || 0),
       priceDisplay: product.harga_label || "",

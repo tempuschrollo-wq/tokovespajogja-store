@@ -200,9 +200,10 @@
           <section class="dashboard-card marketplace-card">
             <div class="marketplace-head">
               <div>
-                <h3>Catat Order Marketplace</h3>
+                <h3>Catat Order Marketplace / Offline</h3>
                 <p>
-                  Gunakan form ini untuk mencatat penjualan dari Shopee, Tokopedia, atau TikTok Shop
+                  Gunakan form ini untuk mencatat penjualan dari Shopee, Tokopedia, TikTok Shop,
+                  atau offline selling
                   tanpa menyentuh Google Sheet manual.
                 </p>
               </div>
@@ -214,11 +215,12 @@
             <form class="marketplace-form" id="marketplace-form">
               <div class="marketplace-form-grid">
                 <label class="access-field" for="marketplace-channel">
-                  <span>Channel marketplace</span>
+                  <span>Jenis order</span>
                   <select id="marketplace-channel" required>
                     <option value="SHOPEE">Shopee</option>
                     <option value="TOKOPEDIA">Tokopedia</option>
                     <option value="TIKTOK">TikTok Shop</option>
+                    <option value="OFFLINE_SELLING">Offline Selling</option>
                   </select>
                 </label>
 
@@ -254,11 +256,11 @@
                 </label>
 
                 <label class="access-field" for="marketplace-order-no">
-                  <span>Nomor order marketplace</span>
+                  <span>Nomor order</span>
                   <input
                     id="marketplace-order-no"
                     type="text"
-                    placeholder="Opsional, misalnya SPX-12345"
+                    placeholder="Opsional, misalnya SPX-12345 atau nota toko"
                   />
                 </label>
 
@@ -302,7 +304,7 @@
                   id="marketplace-submit-button"
                   type="submit"
                 >
-                  Catat Order Marketplace
+                  Catat Order
                 </button>
                 <p class="marketplace-inline-status" id="marketplace-inline-status">
                   Transaksi ini akan mengurangi stok pusat, masuk inventory log, dan ikut reporting.
@@ -312,7 +314,7 @@
 
             <div class="marketplace-history-head">
               <div>
-                <h4>Riwayat Marketplace Terbaru</h4>
+                <h4>Riwayat Marketplace / Offline Terbaru</h4>
                 <p>Cek input terakhir supaya admin lebih yakin transaksi sudah masuk dengan benar.</p>
               </div>
               <button

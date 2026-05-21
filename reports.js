@@ -7,6 +7,7 @@ import {
   normalizeText
 } from "./catalog-store.js"
 import {
+  fetchAdminMarketplaceHistory,
   fetchAdminOrdersList,
   fetchLiveCatalog,
   hasAdminApiToken,
@@ -206,6 +207,38 @@ const normalizeOrder = (order) => {
   }
 }
 
+const normalizeMarketplaceSaleAsOrder = (sale) => {
+  const qty = toNumber(getOrderValue(sale, ["qty_keluar", "Qty_Keluar"], 0))
+  const unitPrice = toNumber(getOrderValue(sale, ["harga_jual_satuan", "Harga_Jual_Satuan"], 0))
+  const totalPenjualan =
+    toNumber(getOrderValue(sale, ["total_penjualan", "Total_Penjualan"], 0)) || qty * unitPrice
+  const sku = String(getOrderValue(sale, ["sku", "SKU"], "")).trim()
+  const namaProduk = String(getOrderValue(sale, ["nama_produk", "Nama_Produk"], sku)).trim()
+  const channelLabel = String(getOrderValue(sale, ["channel_label", "channel"], "Marketplace")).trim()
+
+  return normalizeOrder({
+    order_id: getOrderValue(sale, ["referensi_id", "out_id"], ""),
+    order_date: getOrderValue(sale, ["waktu", "tanggal", "Tanggal"], ""),
+    customer_nama: channelLabel,
+    items: [
+      {
+        sku,
+        nama_produk: namaProduk,
+        qty,
+        harga_jual: unitPrice,
+        subtotal: totalPenjualan
+      }
+    ],
+    sku_list: sku,
+    qty_total: qty,
+    subtotal: totalPenjualan,
+    grand_total: totalPenjualan,
+    status_order: "DONE",
+    payment_status: "PAID",
+    source: getOrderValue(sale, ["channel", "sourceType"], "MARKETPLACE")
+  })
+}
+
 const isActiveOrder = (order) => {
   const status = normalizeText(order.statusOrder)
   return !["cancel", "cancelled", "canceled", "dibatalkan", "deleted"].includes(status)
@@ -225,6 +258,7 @@ const calculatePeriodReport = ({ orders, products, start, end }) => {
     revenue: 0,
     cogs: 0,
     profit: 0,
+    missingCostItems: 0,
     paidOrders: 0,
     unpaidOrders: 0,
     topProducts: [],
@@ -249,6 +283,9 @@ const calculatePeriodReport = ({ orders, products, start, end }) => {
       const itemRevenue = Number(item.subtotal || 0)
       const product = productBySku.get(sku)
       const itemCost = Number(product?.costPrice || 0) * qty
+      if (!product || Number(product.costPrice || 0) <= 0) {
+        aggregates.missingCostItems += qty
+      }
       const categoryLabel = product?.categoryLabel || getCategoryLabel(product?.category || "aksesoris")
 
       aggregates.cogs += itemCost
@@ -356,6 +393,7 @@ const renderMetrics = (target, report) => {
     { label: "Omzet produk", value: formatRupiah(report.revenue) },
     { label: "Estimasi modal", value: formatRupiah(report.cogs) },
     { label: "Estimasi profit", value: formatRupiah(report.profit) },
+    { label: "HPP kosong", value: `${formatItemCount(report.missingCostItems)} item` },
     { label: "Rata-rata order", value: formatRupiah(averageOrder) }
   ]
     .map(
@@ -518,7 +556,7 @@ const renderReports = () => {
   })
 
   kpiTodayRevenue.textContent = formatRupiah(todayReport.revenue)
-  kpiTodayOrders.textContent = `${formatItemCount(todayReport.ordersCount)} order · ${formatItemCount(todayReport.unitsSold)} item`
+  kpiTodayOrders.textContent = `${formatItemCount(todayReport.ordersCount)} order · ${formatItemCount(todayReport.unitsSold)} item · profit ${formatRupiah(todayReport.profit)}`
   kpiWeekRevenue.textContent = formatRupiah(weekReport.revenue)
   kpiWeekProfit.textContent = `Profit estimasi ${formatRupiah(weekReport.profit)}`
   kpiMonthRevenue.textContent = formatRupiah(monthReport.revenue)
@@ -628,10 +666,27 @@ const loadReports = async ({ force = false } = {}) => {
   }
 
   try {
-    const orders = await fetchAllAdminOrders()
-    state.orders = orders
-    reportTokenNote.textContent =
-      "Profit masih estimasi karena memakai harga modal aktif produk saat laporan dibaca."
+    const websiteOrders = await fetchAllAdminOrders()
+    let marketplaceOrders = []
+    let marketplaceWarning = ""
+
+    try {
+      const marketplacePayload = await fetchAdminMarketplaceHistory({
+        limit: 1000
+      })
+      marketplaceOrders = Array.isArray(marketplacePayload.items)
+        ? marketplacePayload.items.map(normalizeMarketplaceSaleAsOrder)
+        : []
+    } catch (error) {
+      console.error(error)
+      marketplaceWarning =
+        "Riwayat marketplace/offline belum terbaca, jadi laporan website bisa berbeda dari Sheet."
+    }
+
+    state.orders = [...websiteOrders, ...marketplaceOrders]
+    reportTokenNote.textContent = marketplaceWarning
+      ? `${marketplaceWarning} Profit tetap estimasi dan HPP kosong dihitung 0.`
+      : "Profit masih estimasi karena memakai harga modal aktif produk saat laporan dibaca. HPP kosong dihitung 0."
   } catch (error) {
     console.error(error)
     state.orders = []

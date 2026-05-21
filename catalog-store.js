@@ -191,12 +191,17 @@ export const hydrateProduct = (product, index = 0) => {
   const models = Array.isArray(product.models)
     ? product.models.map((item) => String(item).trim()).filter(Boolean)
     : []
-  const availability =
-    product.status === "out" || stock === 0 ? "out" : "ready"
   const stockStatus =
     product.stockStatus ||
     product.status_stok ||
     (stock <= 0 ? "OUT OF STOCK" : stock <= minimumStock ? "LOW" : "READY")
+  const normalizedStockStatus = String(stockStatus || "")
+    .toUpperCase()
+    .replace(/[_-]+/g, " ")
+  const isOutOfStock = stock <= 0 || normalizedStockStatus.includes("OUT")
+  const isLowStock =
+    !isOutOfStock && (normalizedStockStatus.includes("LOW") || stock <= minimumStock)
+  const availability = isOutOfStock ? "out" : isLowStock ? "low" : "ready"
   const baseId = product.id || product.sku || `item-${index + 1}`
   const rawPriceDisplay = String(product.priceDisplay || "").trim()
   const normalizedPriceDisplay =
@@ -220,9 +225,10 @@ export const hydrateProduct = (product, index = 0) => {
     stockOut: Number(product.stockOut ?? 0) || 0,
     stock,
     minimumStock,
-    stockStatus: String(stockStatus || "").toUpperCase(),
+    stockStatus: normalizedStockStatus,
     availability,
-    availabilityLabel: availability === "ready" ? "Ready" : "Stock Habis",
+    availabilityLabel:
+      availability === "out" ? "Stock Habis" : availability === "low" ? "Stock Rendah" : "Ready",
     price,
     costPrice,
     priceDisplay: normalizedPriceDisplay,

@@ -159,10 +159,14 @@ const adminToast = document.querySelector("#admin-toast")
 
 const MARKETPLACE_HISTORY_LIMIT = 8
 const MARKETPLACE_CHANNEL_LABELS = {
-  SHOPEE: "Shopee",
-  TOKOPEDIA: "Tokopedia",
-  TIKTOK: "TikTok Shop"
+  shopee: "Shopee",
+  tokopedia: "Tokopedia",
+  tiktok: "TikTok Shop",
+  offline_selling: "Offline Selling"
 }
+
+const normalizeMarketplaceChannel = (channel) =>
+  normalizeText(channel).replace(/[\s-]+/g, "_")
 
 const readOrderNotificationSoundPreference = () => {
   try {
@@ -654,7 +658,7 @@ const focusOrderFromNotification = async (orderId) => {
 }
 
 const getMarketplaceChannelLabel = (channel) =>
-  MARKETPLACE_CHANNEL_LABELS[normalizeText(channel)] || "Marketplace"
+  MARKETPLACE_CHANNEL_LABELS[normalizeMarketplaceChannel(channel)] || "Marketplace"
 
 const getMarketplaceProducts = () =>
   [...state.products].sort((left, right) => left.name.localeCompare(right.name, "id"))
@@ -872,7 +876,7 @@ const setMarketplaceSubmitting = (isSubmitting) => {
   marketplaceSubmitButton.classList.toggle("is-loading", isSubmitting)
   marketplaceSubmitButton.textContent = isSubmitting
     ? "Mencatat Transaksi..."
-    : "Catat Order Marketplace"
+    : "Catat Order"
 }
 
 const resetMarketplaceForm = () => {
@@ -910,7 +914,7 @@ const renderMarketplaceHistory = () => {
 
   if (!state.marketplaceHistory.length) {
     marketplaceHistoryList.innerHTML =
-      '<div class="marketplace-history-empty">Belum ada transaksi marketplace yang tercatat.</div>'
+      '<div class="marketplace-history-empty">Belum ada transaksi marketplace / offline yang tercatat.</div>'
     return
   }
 
@@ -977,7 +981,7 @@ const submitMarketplaceOrder = async () => {
   }
 
   const product = getSelectedMarketplaceProduct()
-  const channel = normalizeText(marketplaceChannelSelect.value)
+  const channel = normalizeMarketplaceChannel(marketplaceChannelSelect.value)
   const qty = getMarketplaceQtyValue()
   const hargaJual = getMarketplacePriceValue(product)
   const marketplaceOrderNo = marketplaceOrderNoInput.value.trim()
@@ -1000,7 +1004,7 @@ const submitMarketplaceOrder = async () => {
   }
 
   setMarketplaceSubmitting(true)
-  updateMarketplaceInlineStatus("Transaksi marketplace sedang dikirim ke inventory live...")
+  updateMarketplaceInlineStatus("Transaksi sedang dikirim ke inventory live...")
 
   try {
     const response = await createAdminMarketplaceOrder({
@@ -1021,7 +1025,7 @@ const submitMarketplaceOrder = async () => {
       "success"
     )
     setStatus(
-      `Order marketplace ${response.transaction?.referensi_id || product.sku} berhasil dicatat.`,
+      `Order ${getMarketplaceChannelLabel(channel)} ${response.transaction?.referensi_id || product.sku} berhasil dicatat.`,
       {
         toast: true
       }
@@ -1324,8 +1328,9 @@ const restoreOrderItemsToLocalCatalog = (orderId) => {
       stock: nextStock,
       stockIn: nextStock,
       stockStatus,
-      availability: nextStock <= 0 ? "out" : "ready",
-      availabilityLabel: nextStock <= 0 ? "Stock Habis" : "Ready"
+      availability: nextStock <= 0 ? "out" : stockStatus === "LOW" ? "low" : "ready",
+      availabilityLabel:
+        nextStock <= 0 ? "Stock Habis" : stockStatus === "LOW" ? "Stock Rendah" : "Ready"
     }
   })
 

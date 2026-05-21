@@ -67,6 +67,19 @@ const CACHE_FILES = {
   "dashboard-summary": path.join(CACHE_DIR, "dashboard-summary.json")
 }
 
+const MARKETPLACE_CREATE_PATHS = new Set([
+  "/api/admin/marketplace/create",
+  "/api/admin/marketplace/order/create",
+  "/api/admin/order/marketplace/create",
+  "/api/admin/offline-selling/create"
+])
+
+const MARKETPLACE_LIST_PATHS = new Set([
+  "/api/admin/marketplace/list",
+  "/api/admin/marketplace/order/list",
+  "/api/admin/order/marketplace/list"
+])
+
 const apiCache = new Map()
 
 await hydrateCacheFromDisk_()
@@ -200,7 +213,7 @@ async function handleApiRequest(request, response, requestUrl) {
     return
   }
 
-  if (request.method === "POST" && requestUrl.pathname === "/api/admin/marketplace/create") {
+  if (request.method === "POST" && MARKETPLACE_CREATE_PATHS.has(requestUrl.pathname)) {
     const body = await readJsonBody_(request)
     const payload = await fetchAppsScriptJson_("admin/marketplace/create", body)
     invalidateInventoryCacheOnSuccess_(payload)
@@ -208,7 +221,7 @@ async function handleApiRequest(request, response, requestUrl) {
     return
   }
 
-  if (request.method === "POST" && requestUrl.pathname === "/api/admin/marketplace/list") {
+  if (request.method === "POST" && MARKETPLACE_LIST_PATHS.has(requestUrl.pathname)) {
     const body = await readJsonBody_(request)
     const payload = await fetchAppsScriptJson_("admin/marketplace/list", body)
     writeJson(response, 200, payload)

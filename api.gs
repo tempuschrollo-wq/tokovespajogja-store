@@ -1,130 +1,99 @@
+/**
+ * Handles public GET web app requests.
+ */
 function doGet(e) {
-  return executeApiRequest_('GET', e);
+  return handleApiRequest_('GET', e);
 }
 
+/**
+ * Handles public and admin POST web app requests.
+ */
 function doPost(e) {
-  return executeApiRequest_('POST', e);
+  return handleApiRequest_('POST', e);
 }
 
-function executeApiRequest_(method, e) {
-  var route = parseApiRoute_(e);
-  var endpoint = '/' + (route || '');
-  var requestPayload = method === 'GET' ? (e && e.parameter ? e.parameter : {}) : parseJsonBody_(e);
-
-  try {
-    var responsePayload = dispatchApiRoute_(method, route, requestPayload, e);
-
-    safeWriteApiLog_({
-      Timestamp: new Date(),
-      Method: method,
-      Endpoint: endpoint,
-      Payload_Singkat: requestPayload,
-      Status: 200,
-      Response_Singkat: {
-        success: responsePayload.success,
-        message: responsePayload.message,
-        meta: responsePayload.meta
-      }
-    });
-
-    return jsonOutput_(responsePayload);
-  } catch (error) {
-    var normalizedError = normalizeApiError_(error);
-    var errorPayload = buildErrorEnvelope_(error);
-
-    safeWriteApiLog_({
-      Timestamp: new Date(),
-      Method: method,
-      Endpoint: endpoint,
-      Payload_Singkat: requestPayload,
-      Status: normalizedError.status,
-      Response_Singkat: errorPayload
-    });
-
-    return jsonOutput_(errorPayload);
-  }
-}
-
-function dispatchApiRoute_(method, route, payload, e) {
+/**
+ * Routes normalized API requests to module-level handlers.
+ */
+function routeApiRequest_(method, endpoint, payload) {
   if (method === 'GET') {
-    return dispatchApiGetRoute_(route, payload, e);
+    if (endpoint === '/' || endpoint === '/products' || endpoint === '/product-list') {
+      return apiGetProducts_(payload);
+    }
+    if (endpoint === '/product' || endpoint === '/products/detail') {
+      return apiGetProduct_(payload);
+    }
+    if (endpoint === '/dashboard-summary' || endpoint === '/dashboard') {
+      return apiDashboardSummary_();
+    }
+    if (endpoint === '/health' || endpoint === '/ping') {
+      return apiHealth_();
+    }
+    if (endpoint === '/marketplace/products') {
+      return apiMarketplaceProducts_(payload);
+    }
+    return apiError_('ENDPOINT_NOT_FOUND', null, { endpoint: endpoint });
   }
 
   if (method === 'POST') {
-    return dispatchApiPostRoute_(route, payload, e);
+    if (endpoint === '/order' ||
+        endpoint === '/orders' ||
+        endpoint === '/create-order' ||
+        endpoint === '/createorder' ||
+        endpoint === '/submitorder' ||
+        endpoint === '/order/create') {
+      return apiCreateOrder_(payload);
+    }
+    if (endpoint === '/admin/order/cancel' ||
+        endpoint === '/admin/orders/cancel' ||
+        endpoint === '/cancelorder' ||
+        endpoint === '/order/cancel') {
+      return apiCancelOrder_(payload);
+    }
+    if (endpoint === '/admin/order/delete') {
+      return apiDeleteOrder_(payload);
+    }
+    if (endpoint === '/admin/orders/list') {
+      return apiAdminOrdersList_(payload);
+    }
+    if (endpoint === '/admin/stock/in') {
+      return apiAdminStockIn_(payload);
+    }
+    if (endpoint === '/admin/stock/out') {
+      return apiAdminStockOut_(payload);
+    }
+    if (endpoint === '/admin/products/update') {
+      return apiAdminProductsUpdate_(payload);
+    }
+    if (endpoint === '/admin/marketplace/create' ||
+        endpoint === '/admin/marketplace/order/create' ||
+        endpoint === '/admin/order/marketplace/create' ||
+        endpoint === '/admin/offline-selling/create') {
+      return apiAdminMarketplaceCreate_(payload, endpoint);
+    }
+    if (endpoint === '/admin/marketplace/list' ||
+        endpoint === '/admin/marketplace/order/list' ||
+        endpoint === '/admin/order/marketplace/list') {
+      return apiAdminMarketplaceList_(payload);
+    }
+    if (endpoint === '/admin/system-monitor') {
+      return apiAdminSystemMonitor_();
+    }
+    if (endpoint === '/admin/system/backup') {
+      return apiAdminSystemBackup_();
+    }
+    if (endpoint === '/admin/system/refresh-reporting') {
+      return apiAdminRefreshReporting_();
+    }
+    if (endpoint === '/admin/system/archive') {
+      archiveOldLogsNow();
+      return apiSuccess_('ARCHIVE_COMPLETE', {});
+    }
+    if (endpoint === '/admin/system/smoke-test') {
+      return apiSuccess_('SMOKE_TEST_COMPLETE', runInternalSmokeTest());
+    }
+    return apiError_('ENDPOINT_NOT_FOUND', null, { endpoint: endpoint });
   }
 
-  throw apiError_('METHOD_NOT_ALLOWED', 'Method tidak didukung.', 405);
-}
-
-function dispatchApiGetRoute_(route, params) {
-  switch (route) {
-    case '':
-      return buildSuccessEnvelope_('API Toko Vespa Jogja aktif.', {
-        service: 'Toko Vespa Jogja API',
-        version: '1.0.0',
-        routes: [
-          'GET /products',
-          'GET /product',
-          'GET /dashboard-summary',
-          'POST /order',
-          'POST /order/reconcile',
-          'POST /admin/orders/list',
-          'POST /admin/order/update',
-          'POST /admin/order/delete',
-          'POST /admin/product/create',
-          'POST /admin/product/update',
-          'POST /admin/product/delete',
-          'POST /admin/marketplace/create',
-          'POST /admin/marketplace/list',
-          'POST /admin/stock/in',
-          'POST /admin/stock/out',
-          'POST /admin/order/cancel',
-          'POST /admin/system-monitor'
-        ]
-      }, null);
-    case 'products':
-      return apiGetProducts_(params);
-    case 'product':
-      return apiGetProduct_(params);
-    case 'dashboard-summary':
-      return apiGetDashboardSummary_();
-    default:
-      throw apiError_('NOT_FOUND', 'Endpoint GET tidak ditemukan: /' + route, 404);
-  }
-}
-
-function dispatchApiPostRoute_(route, payload, e) {
-  switch (route) {
-    case 'order':
-      return apiCreateOrder_(payload, e);
-    case 'order/reconcile':
-      return apiReconcileOrder_(payload, e);
-    case 'admin/orders/list':
-      return apiAdminOrdersList_(payload, e);
-    case 'admin/order/update':
-      return apiAdminOrderUpdate_(payload, e);
-    case 'admin/order/delete':
-      return apiAdminOrderDelete_(payload, e);
-    case 'admin/product/create':
-      return apiAdminProductCreate_(payload, e);
-    case 'admin/product/update':
-      return apiAdminProductUpdate_(payload, e);
-    case 'admin/product/delete':
-      return apiAdminProductDelete_(payload, e);
-    case 'admin/marketplace/create':
-      return apiAdminMarketplaceCreate_(payload, e);
-    case 'admin/marketplace/list':
-      return apiAdminMarketplaceList_(payload, e);
-    case 'admin/stock/in':
-      return apiAdminStockIn_(payload, e);
-    case 'admin/stock/out':
-      return apiAdminStockOut_(payload, e);
-    case 'admin/order/cancel':
-      return apiAdminOrderCancel_(payload, e);
-    case 'admin/system-monitor':
-      return apiAdminSystemMonitor_(payload, e);
-    default:
-      throw apiError_('NOT_FOUND', 'Endpoint POST tidak ditemukan: /' + route, 404);
-  }
+  return apiError_('METHOD_NOT_ALLOWED', null, { method: method });
 }

@@ -960,6 +960,11 @@ button {
   background: rgba(42, 123, 81, 0.08);
 }
 
+.product-status.low {
+  color: var(--gold);
+  background: rgba(181, 145, 78, 0.14);
+}
+
 .product-status.out {
   color: var(--preorder);
   background: rgba(181, 91, 45, 0.1);

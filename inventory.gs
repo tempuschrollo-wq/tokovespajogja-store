@@ -1,580 +1,499 @@
-function processStockInRowByNumber(rowNumber) {
-  return withDocumentLock_(function() {
-    var sheet = getSheetOrThrow_(SHEETS.STOCK_IN);
-    assertExpectedHeaders_(sheet);
-
-    if (rowNumber < 2) {
-      throw new Error('Row STOCK_IN tidak valid: ' + rowNumber);
-    }
-
-    var rowObject = getRowObject_(sheet, rowNumber);
-    if (isRowCompletelyEmpty_(rowObject, ['Tanggal', 'SKU', 'Qty_Masuk', 'Harga_Modal_Satuan'])) {
-      throw new Error('Row STOCK_IN ' + rowNumber + ' kosong.');
-    }
-
-    validateStockInRowData_(rowObject, rowNumber);
-
-    var inId = ensureTransactionId_(sheet, rowNumber, 'In_ID');
-    if (inventoryLogExists_('STOCK_IN', inId)) {
-      throw new Error('Transaksi STOCK_IN sudah pernah diproses: ' + inId);
-    }
-
-    var sku = String(rowObject.SKU).trim();
-    var product = getProductBySku_(sku);
-    var qtyMasuk = parsePositiveNumber_(rowObject.Qty_Masuk, 'Qty_Masuk');
-    var hargaModalSatuan = parseNonNegativeNumber_(rowObject.Harga_Modal_Satuan, 'Harga_Modal_Satuan');
-    var stockBefore = parseNonNegativeNumber_(product.Stok_Aktif, 'Stok_Aktif');
-    var stockAfter = stockBefore + qtyMasuk;
-    var actor = getCurrentActor_(rowObject.Input_By);
-    var totalModalMasuk = qtyMasuk * hargaModalSatuan;
-
-    setCellValueRespectFormula_(sheet, rowNumber, 'Nama_Produk', product.Nama_Produk);
-    setCellValueRespectFormula_(sheet, rowNumber, 'Total_Modal_Masuk', totalModalMasuk);
-
-    applyStockInToMasterProduct_(product, stockAfter, hargaModalSatuan, actor);
-
-    writeInventoryLog_({
-      Timestamp: new Date(),
-      SKU: product.SKU,
-      Nama_Produk: product.Nama_Produk,
-      Tipe_Log: 'STOCK_IN',
-      Qty_Change: qtyMasuk,
-      Stok_Sebelum: stockBefore,
-      Stok_Sesudah: stockAfter,
-      Reference_ID: inId,
-      Note: buildStockInNote_(rowObject),
-      Actor: actor
-    });
-
-    showToast_('STOCK_IN berhasil diproses: ' + inId);
-
-    return {
-      In_ID: inId,
-      SKU: product.SKU,
-      Stock_Before: stockBefore,
-      Stock_After: stockAfter
-    };
-  });
-}
-
-function processStockOutRowByNumber(rowNumber) {
-  return withDocumentLock_(function() {
-    var sheet = getSheetOrThrow_(SHEETS.STOCK_OUT);
-    assertExpectedHeaders_(sheet);
-
-    if (rowNumber < 2) {
-      throw new Error('Row STOCK_OUT tidak valid: ' + rowNumber);
-    }
-
-    var rowObject = getRowObject_(sheet, rowNumber);
-    if (isRowCompletelyEmpty_(rowObject, ['Tanggal', 'SKU', 'Jenis_Keluar', 'Qty_Keluar'])) {
-      throw new Error('Row STOCK_OUT ' + rowNumber + ' kosong.');
-    }
-
-    validateStockOutRowData_(rowObject, rowNumber);
-
-    var outId = ensureTransactionId_(sheet, rowNumber, 'Out_ID');
-    if (inventoryLogExists_('STOCK_OUT', outId)) {
-      throw new Error('Transaksi STOCK_OUT sudah pernah diproses: ' + outId);
-    }
-
-    var sku = String(rowObject.SKU).trim();
-    var product = getProductBySku_(sku);
-    var qtyKeluar = parsePositiveNumber_(rowObject.Qty_Keluar, 'Qty_Keluar');
-    var jenisKeluar = validateEnumValue_('Jenis_Keluar', rowObject.Jenis_Keluar, ENUMS.JENIS_KELUAR);
-    var stockBefore = parseNonNegativeNumber_(product.Stok_Aktif, 'Stok_Aktif');
-    var actor = getCurrentActor_(rowObject.Input_By);
-    var hargaJualSatuan = resolveStockOutHargaJualSatuan_(rowObject, product);
-    var totalPenjualan = jenisKeluar === 'ORDER' ? qtyKeluar * hargaJualSatuan : 0;
-
-    if (qtyKeluar > stockBefore) {
-      throw new Error(
-        'Stok tidak cukup untuk SKU ' +
-          product.SKU +
-          '. Stok aktif: ' +
-          stockBefore +
-          ', Qty_Keluar: ' +
-          qtyKeluar
-      );
-    }
-
-    setCellValueRespectFormula_(sheet, rowNumber, 'Nama_Produk', product.Nama_Produk);
-    setCellValueRespectFormula_(sheet, rowNumber, 'Harga_Jual_Satuan', hargaJualSatuan);
-    setCellValueRespectFormula_(sheet, rowNumber, 'Total_Penjualan', totalPenjualan);
-
-    var stockAfter = stockBefore - qtyKeluar;
-    applyStockOutToMasterProduct_(product, stockAfter, actor);
-
-    writeInventoryLog_({
-      Timestamp: new Date(),
-      SKU: product.SKU,
-      Nama_Produk: product.Nama_Produk,
-      Tipe_Log: 'STOCK_OUT',
-      Qty_Change: qtyKeluar * -1,
-      Stok_Sebelum: stockBefore,
-      Stok_Sesudah: stockAfter,
-      Reference_ID: outId,
-      Note: buildStockOutNote_(rowObject),
-      Actor: actor
-    });
-
-    showToast_('STOCK_OUT berhasil diproses: ' + outId);
-
-    return {
-      Out_ID: outId,
-      SKU: product.SKU,
-      Stock_Before: stockBefore,
-      Stock_After: stockAfter
-    };
-  });
-}
-
-function processPendingStockInRows() {
-  var sheet = getSheetOrThrow_(SHEETS.STOCK_IN);
-  assertExpectedHeaders_(sheet);
-
-  var lastRow = sheet.getLastRow();
-  var processedCount = 0;
-
-  for (var rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
-    var rowObject = getRowObject_(sheet, rowNumber);
-    if (!isStockInRowReady_(rowObject)) {
-      continue;
-    }
-
-    var inId = rowObject.In_ID || ensureTransactionId_(sheet, rowNumber, 'In_ID');
-    if (inventoryLogExists_('STOCK_IN', inId)) {
-      continue;
-    }
-
-    processStockInRowByNumber(rowNumber);
-    processedCount += 1;
-  }
-
-  showToast_('Pending STOCK_IN diproses: ' + processedCount + ' row');
-  return processedCount;
-}
-
-function processPendingStockOutRows() {
-  var sheet = getSheetOrThrow_(SHEETS.STOCK_OUT);
-  assertExpectedHeaders_(sheet);
-
-  var lastRow = sheet.getLastRow();
-  var processedCount = 0;
-
-  for (var rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
-    var rowObject = getRowObject_(sheet, rowNumber);
-    if (!isStockOutRowReady_(rowObject)) {
-      continue;
-    }
-
-    var outId = rowObject.Out_ID || ensureTransactionId_(sheet, rowNumber, 'Out_ID');
-    if (inventoryLogExists_('STOCK_OUT', outId)) {
-      continue;
-    }
-
-    processStockOutRowByNumber(rowNumber);
-    processedCount += 1;
-  }
-
-  showToast_('Pending STOCK_OUT diproses: ' + processedCount + ' row');
-  return processedCount;
-}
-
-function recomputeAllStockStatus() {
-  return withDocumentLock_(function() {
-    var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-    assertExpectedHeaders_(sheet);
-
-    var lastRow = sheet.getLastRow();
-    if (lastRow < 2) {
-      showToast_('MASTER_PRODUCTS belum memiliki data.');
-      return 0;
-    }
-
-    var updatedCount = 0;
-    for (var rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
-      var product = getRowObject_(sheet, rowNumber);
-      if (isRowCompletelyEmpty_(product, ['SKU', 'Nama_Produk'])) {
-        continue;
-      }
-
-      var status = computeStatusStok_(product.Stok_Aktif, product.Minimum_Stok);
-      if (setCellValueRespectFormula_(sheet, rowNumber, 'Status_Stok', status)) {
-        updatedCount += 1;
-      }
-    }
-
-    showToast_('Recompute Status_Stok selesai. Row diperbarui: ' + updatedCount);
-    return updatedCount;
-  });
-}
-
+/**
+ * Checks MASTER_PRODUCTS for common data quality issues.
+ */
 function validateMasterProducts() {
-  var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-  assertExpectedHeaders_(sheet);
+  var cfg = tvjConfig_();
+  var sheet = getSheet_(cfg.sheets.master, true);
+  var missingHeaders = findMissingHeaders_(cfg.sheets.master, cfg.headers.MASTER_PRODUCTS);
+  if (missingHeaders.length > 0) {
+    return notifyUser_('MASTER_PRODUCTS missing headers: ' + missingHeaders.join(', '));
+  }
 
-  var lastRow = sheet.getLastRow();
+  var rows = getRowsAsObjects_(cfg.sheets.master);
+  var seenSku = {};
   var issues = [];
-  var skuSeen = {};
-  var productIdSeen = {};
+  var counts = {
+    skippedEmptyRows: 0,
+    missingSku: 0,
+    duplicateSku: 0,
+    missingName: 0,
+    invalidHargaJual: 0,
+    invalidHargaModal: 0,
+    invalidStok: 0,
+    missingProductId: 0
+  };
 
-  for (var rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
-    var product = getRowObject_(sheet, rowNumber);
-    if (isRowCompletelyEmpty_(product, ['Product_ID', 'SKU', 'Nama_Produk'])) {
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var rowNo = row._rowNumber;
+    var sku = normalizeSku_(row.SKU);
+    var namaProduk = String(row.Nama_Produk || '').trim();
+    var statusProduk = normalizeText_(row.Status_Produk);
+    var isInactive = statusProduk === cfg.statuses.inactive;
+    var hargaJualBlank = row.Harga_Jual === null || typeof row.Harga_Jual === 'undefined' || String(row.Harga_Jual).trim() === '';
+    var stokAktifBlank = row.Stok_Aktif === null || typeof row.Stok_Aktif === 'undefined' || String(row.Stok_Aktif).trim() === '';
+
+    if (sku === '' && namaProduk === '') {
+      counts.skippedEmptyRows++;
       continue;
     }
 
-    var productId = String(product.Product_ID || '').trim();
-    var sku = String(product.SKU || '').trim();
-    var statusProduk = String(product.Status_Produk || '').trim().toUpperCase();
-    var hargaModal = toNumber_(product.Harga_Modal);
-    var hargaJual = product.Harga_Jual === '' ? '' : toNumber_(product.Harga_Jual);
-    var stokAktif = toNumber_(product.Stok_Aktif);
-    var minimumStok = product.Minimum_Stok === '' ? '' : toNumber_(product.Minimum_Stok);
-
-    if (!productId) {
-      issues.push('Row ' + rowNumber + ': Product_ID wajib diisi.');
-    } else if (productIdSeen[normalizeString_(productId)]) {
-      issues.push('Row ' + rowNumber + ': Product_ID duplikat ' + productId);
+    if (sku === '') {
+      counts.missingSku++;
+      issues.push('Row ' + rowNo + ': missing SKU');
+    } else if (seenSku[sku]) {
+      counts.duplicateSku++;
+      issues.push('Row ' + rowNo + ': duplicate SKU ' + sku);
     } else {
-      productIdSeen[normalizeString_(productId)] = true;
+      seenSku[sku] = true;
     }
-
-    if (!sku) {
-      issues.push('Row ' + rowNumber + ': SKU wajib diisi.');
-    } else if (skuSeen[normalizeString_(sku)]) {
-      issues.push('Row ' + rowNumber + ': SKU duplikat ' + sku);
-    } else {
-      skuSeen[normalizeString_(sku)] = true;
+    if (namaProduk === '') {
+      counts.missingName++;
+      issues.push('Row ' + rowNo + ': missing Nama_Produk');
     }
-
-    if (!product.Nama_Produk) {
-      issues.push('Row ' + rowNumber + ': Nama_Produk wajib diisi.');
+    if (safeToNumber_(row.Harga_Modal) < 0) {
+      counts.invalidHargaModal++;
+      issues.push('Row ' + rowNo + ': invalid Harga_Modal');
     }
-
-    if (hargaModal < 0) {
-      issues.push('Row ' + rowNumber + ': Harga_Modal tidak boleh negatif.');
+    if ((!hargaJualBlank && safeToNumber_(row.Harga_Jual) < 0) || (!isInactive && safeToNumber_(row.Harga_Jual) <= 0)) {
+      counts.invalidHargaJual++;
+      issues.push('Row ' + rowNo + ': invalid Harga_Jual');
     }
-
-    if (hargaJual !== '' && hargaJual < 0) {
-      issues.push('Row ' + rowNumber + ': Harga_Jual tidak boleh negatif.');
+    if (!stokAktifBlank && safeToNumber_(row.Stok_Aktif) < 0) {
+      counts.invalidStok++;
+      issues.push('Row ' + rowNo + ': invalid Stok_Aktif');
     }
-
-    if (stokAktif < 0) {
-      issues.push('Row ' + rowNumber + ': Stok_Aktif tidak boleh negatif.');
-    }
-
-    if (minimumStok !== '' && minimumStok < 0) {
-      issues.push('Row ' + rowNumber + ': Minimum_Stok tidak boleh negatif.');
-    }
-
-    if (statusProduk && ENUMS.STATUS_PRODUK.indexOf(statusProduk) === -1) {
-      issues.push('Row ' + rowNumber + ': Status_Produk tidak valid (' + statusProduk + ').');
+    if (String(row.Product_ID || '').trim() === '') {
+      counts.missingProductId++;
+      issues.push('Row ' + rowNo + ': missing Product_ID');
     }
   }
 
-  if (issues.length) {
-    throw new Error('validateMasterProducts menemukan masalah:\n- ' + issues.join('\n- '));
+  var summary = 'Validate MASTER_PRODUCTS: ' + issues.length + ' issue(s). ' +
+    'skipped empty rows=' + counts.skippedEmptyRows +
+    ', missing SKU=' + counts.missingSku +
+    ', duplicate SKU=' + counts.duplicateSku +
+    ', missing name=' + counts.missingName +
+    ', invalid Harga_Jual=' + counts.invalidHargaJual +
+    ', invalid Harga_Modal=' + counts.invalidHargaModal +
+    ', invalid Stok_Aktif=' + counts.invalidStok +
+    ', missing Product_ID=' + counts.missingProductId;
+  if (issues.length > 0) {
+    summary += '. First issues: ' + issues.slice(0, 20).join(' | ');
   }
-
-  showToast_('MASTER_PRODUCTS valid.');
-  return {
-    ok: true,
-    checkedRows: Math.max(0, lastRow - 1)
-  };
+  return notifyUser_(summary);
 }
 
+/**
+ * Generates Product_ID values for rows that are currently empty.
+ */
 function generateMissingProductIds() {
-  return withDocumentLock_(function() {
-    var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-    assertExpectedHeaders_(sheet);
+  var cfg = tvjConfig_();
+  var sheet = getSheet_(cfg.sheets.master, true);
+  var map = getHeaderMap_(sheet);
+  var productIdCol = requireColumn_(map, 'Product_ID', cfg.sheets.master);
+  var lastUpdatedCol = map.Last_Updated || 0;
+  var updatedByCol = map.Updated_By || 0;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return notifyUser_('Generate Product_ID: no product rows.');
+  }
 
+  var values = sheet.getRange(2, productIdCol, lastRow - 1, 1).getValues();
+  var used = {};
+  var maxNumber = 0;
+  for (var i = 0; i < values.length; i++) {
+    var existing = String(values[i][0] || '').trim();
+    if (existing !== '') {
+      used[existing] = true;
+      if (existing.indexOf(cfg.productIdPrefix) === 0) {
+        var suffix = parseInt(existing.substring(cfg.productIdPrefix.length), 10);
+        if (!isNaN(suffix) && suffix > maxNumber) {
+          maxNumber = suffix;
+        }
+      }
+    }
+  }
+
+  var generated = 0;
+  for (var r = 0; r < values.length; r++) {
+    if (String(values[r][0] || '').trim() === '') {
+      var nextId = '';
+      do {
+        maxNumber++;
+        nextId = cfg.productIdPrefix + padNumber_(maxNumber, 4);
+      } while (used[nextId]);
+      used[nextId] = true;
+      sheet.getRange(r + 2, productIdCol).setValue(nextId);
+      if (lastUpdatedCol) {
+        sheet.getRange(r + 2, lastUpdatedCol).setValue(new Date());
+      }
+      if (updatedByCol) {
+        sheet.getRange(r + 2, updatedByCol).setValue('SYSTEM');
+      }
+      generated++;
+    }
+  }
+  return notifyUser_('Generate Product_ID: ' + generated + ' row(s) updated.');
+}
+
+/**
+ * Recalculates product margin fields from Harga_Modal and Harga_Jual.
+ */
+function backfillProductMargins() {
+  var cfg = tvjConfig_();
+  var sheet = getSheet_(cfg.sheets.master, true);
+  var map = getHeaderMap_(sheet);
+  var modalCol = requireColumn_(map, 'Harga_Modal', cfg.sheets.master);
+  var jualCol = requireColumn_(map, 'Harga_Jual', cfg.sheets.master);
+  var marginRpCol = requireColumn_(map, 'Margin_Rp', cfg.sheets.master);
+  var marginPercentCol = requireColumn_(map, 'Margin_Persen', cfg.sheets.master);
+  var lastUpdatedCol = map.Last_Updated || 0;
+  var updatedByCol = map.Updated_By || 0;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return notifyUser_('Backfill margin produk: no product rows.');
+  }
+
+  var values = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  var marginRpValues = [];
+  var marginPercentValues = [];
+  var now = new Date();
+  for (var i = 0; i < values.length; i++) {
+    var hargaModal = safeToNumber_(values[i][modalCol - 1]);
+    var hargaJual = safeToNumber_(values[i][jualCol - 1]);
+    var marginRp = hargaJual > 0 ? hargaJual - hargaModal : 0;
+    var marginPercent = hargaJual > 0 ? marginRp / hargaJual : 0;
+    marginRpValues.push([marginRp]);
+    marginPercentValues.push([marginPercent]);
+  }
+  sheet.getRange(2, marginRpCol, marginRpValues.length, 1).setValues(marginRpValues);
+  sheet.getRange(2, marginPercentCol, marginPercentValues.length, 1).setValues(marginPercentValues);
+  if (lastUpdatedCol) {
+    sheet.getRange(2, lastUpdatedCol, values.length, 1).setValues(repeatedColumn_(now, values.length));
+  }
+  if (updatedByCol) {
+    sheet.getRange(2, updatedByCol, values.length, 1).setValues(repeatedColumn_('SYSTEM', values.length));
+  }
+  return notifyUser_('Backfill margin produk: ' + values.length + ' product row(s) updated.');
+}
+
+/**
+ * Recomputes stock statuses for all products.
+ */
+function recomputeAllStockStatus() {
+  var cfg = tvjConfig_();
+  var sheet = getSheet_(cfg.sheets.master, true);
+  var map = getHeaderMap_(sheet);
+  var stockCol = requireColumn_(map, 'Stok_Aktif', cfg.sheets.master);
+  var minCol = requireColumn_(map, 'Minimum_Stok', cfg.sheets.master);
+  var statusStockCol = requireColumn_(map, 'Status_Stok', cfg.sheets.master);
+  var statusProductCol = requireColumn_(map, 'Status_Produk', cfg.sheets.master);
+  var lastUpdatedCol = map.Last_Updated || 0;
+  var updatedByCol = map.Updated_By || 0;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return notifyUser_('Recompute Status_Stok: no product rows.');
+  }
+
+  var values = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  var stockStatuses = [];
+  var productStatuses = [];
+  var now = new Date();
+  for (var i = 0; i < values.length; i++) {
+    stockStatuses.push([calculateStockStatus_(values[i][stockCol - 1], values[i][minCol - 1])]);
+    var existingStatus = normalizeText_(values[i][statusProductCol - 1]);
+    productStatuses.push([existingStatus === cfg.statuses.inactive ? cfg.statuses.inactive : cfg.statuses.active]);
+  }
+  sheet.getRange(2, statusStockCol, stockStatuses.length, 1).setValues(stockStatuses);
+  sheet.getRange(2, statusProductCol, productStatuses.length, 1).setValues(productStatuses);
+  if (lastUpdatedCol) {
+    sheet.getRange(2, lastUpdatedCol, values.length, 1).setValues(repeatedColumn_(now, values.length));
+  }
+  if (updatedByCol) {
+    sheet.getRange(2, updatedByCol, values.length, 1).setValues(repeatedColumn_('SYSTEM', values.length));
+  }
+  return notifyUser_('Recompute Status_Stok: ' + values.length + ' product row(s) updated.');
+}
+
+/**
+ * Processes the active selected row on STOCK_IN.
+ */
+function processActiveStockInRow() {
+  return withDocumentLock_(function() {
+    var cfg = tvjConfig_();
+    var activeSheet = getSpreadsheet_().getActiveSheet();
+    if (!activeSheet || activeSheet.getName() !== cfg.sheets.stockIn) {
+      throw new Error('Select an active row in STOCK_IN first.');
+    }
+    var row = activeSheet.getActiveRange().getRow();
+    if (row <= 1) {
+      throw new Error('Header row cannot be processed.');
+    }
+    var result = processStockInRowUnlocked_(activeSheet, row, 'MANUAL_MENU');
+    return notifyUser_(result.message);
+  });
+}
+
+/**
+ * Processes the active selected row on STOCK_OUT.
+ */
+function processActiveStockOutRow() {
+  return withDocumentLock_(function() {
+    var cfg = tvjConfig_();
+    var activeSheet = getSpreadsheet_().getActiveSheet();
+    if (!activeSheet || activeSheet.getName() !== cfg.sheets.stockOut) {
+      throw new Error('Select an active row in STOCK_OUT first.');
+    }
+    var row = activeSheet.getActiveRange().getRow();
+    if (row <= 1) {
+      throw new Error('Header row cannot be processed.');
+    }
+    var result = processStockOutRowUnlocked_(activeSheet, row, 'MANUAL_MENU');
+    return notifyUser_(result.message);
+  });
+}
+
+/**
+ * Processes every STOCK_IN row that has not yet been logged.
+ */
+function processAllPendingStockIn() {
+  return withDocumentLock_(function() {
+    var cfg = tvjConfig_();
+    var sheet = getSheet_(cfg.sheets.stockIn, true);
     var lastRow = sheet.getLastRow();
-    var generatedCount = 0;
-
-    for (var rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
-      var product = getRowObject_(sheet, rowNumber);
-      if (isRowCompletelyEmpty_(product, ['SKU', 'Nama_Produk'])) {
-        continue;
-      }
-
-      if (!String(product.Product_ID || '').trim()) {
-        var productId = generateUniqueId_('Product_ID');
-        sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Product_ID')).setValue(productId);
-        generatedCount += 1;
+    var processed = 0;
+    var skipped = 0;
+    var errors = [];
+    for (var row = 2; row <= lastRow; row++) {
+      try {
+        var rowObject = getRowObject_(sheet, row);
+        var inId = ensureStockInIdUnlocked_(sheet, row, rowObject);
+        if (inventoryReferenceExists_(inId, 'STOCK_IN')) {
+          skipped++;
+          continue;
+        }
+        processStockInRowUnlocked_(sheet, row, 'BULK_MENU');
+        processed++;
+      } catch (err) {
+        errors.push('Row ' + row + ': ' + err.message);
       }
     }
-
-    showToast_('Product_ID berhasil dibuat: ' + generatedCount);
-    return generatedCount;
+    var message = 'Process pending STOCK_IN: processed=' + processed + ', skipped=' + skipped + ', errors=' + errors.length;
+    if (errors.length > 0) {
+      message += '. First errors: ' + errors.slice(0, 10).join(' | ');
+    }
+    return notifyUser_(message);
   });
 }
 
-function backfillMargins() {
+/**
+ * Processes every STOCK_OUT row that has not yet been logged.
+ */
+function processAllPendingStockOut() {
   return withDocumentLock_(function() {
-    var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-    assertExpectedHeaders_(sheet);
-
+    var cfg = tvjConfig_();
+    var sheet = getSheet_(cfg.sheets.stockOut, true);
     var lastRow = sheet.getLastRow();
-    var updatedCount = 0;
-
-    for (var rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
-      var product = getRowObject_(sheet, rowNumber);
-      if (isRowCompletelyEmpty_(product, ['SKU', 'Nama_Produk'])) {
-        continue;
+    var processed = 0;
+    var skipped = 0;
+    var errors = [];
+    for (var row = 2; row <= lastRow; row++) {
+      try {
+        var rowObject = getRowObject_(sheet, row);
+        var outId = ensureStockOutIdUnlocked_(sheet, row, rowObject);
+        var refId = String(rowObject.Reference_ID || '').trim();
+        if (inventoryReferenceExists_(outId, 'STOCK_OUT') || isStockOutOrderReferenceProcessed_(rowObject, refId)) {
+          skipped++;
+          continue;
+        }
+        processStockOutRowUnlocked_(sheet, row, 'BULK_MENU');
+        processed++;
+      } catch (err) {
+        errors.push('Row ' + row + ': ' + err.message);
       }
-
-      var hargaModal = parseNonNegativeNumber_(product.Harga_Modal, 'Harga_Modal', true);
-      var hargaJual = parseNonNegativeNumber_(product.Harga_Jual, 'Harga_Jual', true);
-      var marginRp = '';
-      var marginPersen = '';
-
-      if (hargaModal !== '' && hargaJual !== '') {
-        marginRp = hargaJual - hargaModal;
-        marginPersen = hargaModal > 0 ? (hargaJual - hargaModal) / hargaModal : '';
-      }
-
-      if (setCellValueRespectFormula_(sheet, rowNumber, 'Margin_Rp', marginRp)) {
-        updatedCount += 1;
-      }
-      setCellValueRespectFormula_(sheet, rowNumber, 'Margin_Persen', marginPersen);
     }
-
-    showToast_('Backfill margin selesai. Row Margin_Rp diperbarui: ' + updatedCount);
-    return updatedCount;
+    var message = 'Process pending STOCK_OUT: processed=' + processed + ', skipped=' + skipped + ', errors=' + errors.length;
+    if (errors.length > 0) {
+      message += '. First errors: ' + errors.slice(0, 10).join(' | ');
+    }
+    return notifyUser_(message);
   });
 }
 
-function createSampleDataIfEmpty() {
-  return withDocumentLock_(function() {
-    assertExpectedHeaders_(SHEETS.SETTINGS);
-    assertExpectedHeaders_(SHEETS.MASTER_PRODUCTS);
+/**
+ * Mutates stock upward from one STOCK_IN row. Caller must hold LockService.
+ */
+function processStockInRowUnlocked_(sheet, rowNumber, defaultActor) {
+  var cfg = tvjConfig_();
+  var row = getRowObject_(sheet, rowNumber);
+  var inId = ensureStockInIdUnlocked_(sheet, rowNumber, row);
+  if (inventoryReferenceExists_(inId, 'STOCK_IN')) {
+    return { skipped: true, message: 'STOCK_IN row ' + rowNumber + ' already processed: ' + inId };
+  }
+  var sku = normalizeSku_(row.SKU);
+  var qty = safeToNumber_(row.Qty_Masuk);
+  if (sku === '') {
+    throw new Error('SKU is required.');
+  }
+  if (qty <= 0) {
+    throw new Error('Qty_Masuk must be greater than zero.');
+  }
 
-    var actor = getCurrentActor_();
-    var created = {
-      settings: 0,
-      products: 0
-    };
-
-    if (!hasDataRows_(SHEETS.SETTINGS)) {
-      var settingsRows = [
-        [SETTINGS_KEYS.NAMA_TOKO, 'Toko Vespa Jogja', 'Nama toko utama'],
-        [SETTINGS_KEYS.NO_WHATSAPP, '6288802500388', 'Nomor WhatsApp admin'],
-        [SETTINGS_KEYS.URL_WEBSITE, 'https://example.com', 'URL website utama'],
-        [SETTINGS_KEYS.URL_SHOPEE, '', 'URL Shopee'],
-        [SETTINGS_KEYS.URL_TOKOPEDIA, '', 'URL Tokopedia'],
-        [SETTINGS_KEYS.URL_INSTAGRAM, '', 'URL Instagram'],
-        [SETTINGS_KEYS.URL_TIKTOK, '', 'URL TikTok'],
-        [SETTINGS_KEYS.MATA_UANG, APP_CURRENCY, 'Mata uang operasional'],
-        [SETTINGS_KEYS.ZONA_WAKTU, APP_TIMEZONE, 'Timezone operasional'],
-        [SETTINGS_KEYS.LOW_STOCK_THRESHOLD_DEFAULT, 2, 'Default minimum stok'],
-        [SETTINGS_KEYS.LAST_BACKUP_TIME, formatTimestampJakarta_(new Date()), 'Waktu backup terakhir']
-      ];
-
-      getSheetOrThrow_(SHEETS.SETTINGS)
-        .getRange(2, 1, settingsRows.length, settingsRows[0].length)
-        .setValues(settingsRows);
-      created.settings = settingsRows.length;
-    }
-
-    if (!hasDataRows_(SHEETS.MASTER_PRODUCTS)) {
-      var sampleProducts = [
-        [
-          generateUniqueId_('Product_ID'),
-          'TVJ-SAMPLE-001',
-          'Kabel Kopling Vespa Sprint',
-          'Kaki-Kaki',
-          'Sprint',
-          'Sample produk untuk testing stock in/out',
-          50000,
-          75000,
-          25000,
-          0.5,
-          10,
-          2,
-          'READY',
-          'AKTIF',
-          '',
-          250,
-          'RAK-A1',
-          '',
-          '',
-          '',
-          new Date(),
-          actor
-        ],
-        [
-          generateUniqueId_('Product_ID'),
-          'TVJ-SAMPLE-002',
-          'Kampas Rem Vespa PX',
-          'Kaki-Kaki',
-          'PX',
-          'Sample produk kedua untuk testing inventory',
-          30000,
-          '',
-          '',
-          '',
-          3,
-          3,
-          'LOW',
-          'AKTIF',
-          '',
-          200,
-          'RAK-A2',
-          '',
-          '',
-          '',
-          new Date(),
-          actor
-        ]
-      ];
-
-      getSheetOrThrow_(SHEETS.MASTER_PRODUCTS)
-        .getRange(2, 1, sampleProducts.length, sampleProducts[0].length)
-        .setValues(sampleProducts);
-      created.products = sampleProducts.length;
-    }
-
-    showToast_(
-      'Sample data selesai. SETTINGS: ' +
-        created.settings +
-        ', MASTER_PRODUCTS: ' +
-        created.products
-    );
-
-    return created;
+  var productRef = getProductLookupBySku_()[sku];
+  if (!productRef) {
+    throw new Error('SKU not found in MASTER_PRODUCTS: ' + sku);
+  }
+  var product = productRef.object;
+  var oldStock = safeToNumber_(product.Stok_Aktif);
+  var newStock = oldStock + qty;
+  var namaProduk = String(row.Nama_Produk || product.Nama_Produk || '').trim();
+  var actor = String(row.Input_By || defaultActor || 'SYSTEM').trim();
+  updateProductStockFields_(productRef.sheet, productRef.rowNumber, newStock, {
+    Nama_Produk: String(product.Nama_Produk || '').trim() === '' ? namaProduk : product.Nama_Produk,
+    Status_Stok: calculateStockStatus_(newStock, product.Minimum_Stok),
+    Status_Produk: normalizeText_(product.Status_Produk) === cfg.statuses.inactive ? cfg.statuses.inactive : cfg.statuses.active,
+    Last_Updated: new Date(),
+    Updated_By: actor
   });
+
+  appendInventoryLog_({
+    SKU: sku,
+    Nama_Produk: namaProduk,
+    Tipe_Log: 'STOCK_IN',
+    Qty_Change: qty,
+    Stok_Sebelum: oldStock,
+    Stok_Sesudah: newStock,
+    Reference_ID: inId,
+    Note: String(row.Catatan || row.Supplier || '').trim(),
+    Actor: actor
+  });
+  return { skipped: false, message: 'STOCK_IN processed: ' + inId + ' / ' + sku + ' +' + qty };
 }
 
-function validateStockInRowData_(rowObject, rowNumber) {
-  if (!rowObject.Tanggal) {
-    throw new Error('Tanggal wajib diisi pada STOCK_IN row ' + rowNumber);
+/**
+ * Mutates stock downward from one STOCK_OUT row. Caller must hold LockService.
+ */
+function processStockOutRowUnlocked_(sheet, rowNumber, defaultActor) {
+  var cfg = tvjConfig_();
+  var row = getRowObject_(sheet, rowNumber);
+  var outId = ensureStockOutIdUnlocked_(sheet, rowNumber, row);
+  var refId = String(row.Reference_ID || '').trim();
+  if (inventoryReferenceExists_(outId, 'STOCK_OUT') || isStockOutOrderReferenceProcessed_(row, refId)) {
+    return { skipped: true, message: 'STOCK_OUT row ' + rowNumber + ' already processed: ' + outId };
+  }
+  var sku = normalizeSku_(row.SKU);
+  var qty = safeToNumber_(row.Qty_Keluar);
+  if (sku === '') {
+    throw new Error('SKU is required.');
+  }
+  if (qty <= 0) {
+    throw new Error('Qty_Keluar must be greater than zero.');
   }
 
-  if (!String(rowObject.SKU || '').trim()) {
-    throw new Error('SKU wajib diisi pada STOCK_IN row ' + rowNumber);
+  var productRef = getProductLookupBySku_()[sku];
+  if (!productRef) {
+    throw new Error('SKU not found in MASTER_PRODUCTS: ' + sku);
   }
-
-  parsePositiveNumber_(rowObject.Qty_Masuk, 'Qty_Masuk');
-  parseNonNegativeNumber_(rowObject.Harga_Modal_Satuan, 'Harga_Modal_Satuan');
-
-  if (!findRowByValue_(SHEETS.MASTER_PRODUCTS, 'SKU', rowObject.SKU)) {
-    throw new Error('SKU wajib ada di MASTER_PRODUCTS untuk STOCK_IN: ' + rowObject.SKU);
+  var product = productRef.object;
+  var oldStock = safeToNumber_(product.Stok_Aktif);
+  var newStock = oldStock - qty;
+  if (newStock < 0 && !isNegativeStockAllowed_()) {
+    throw new Error('Insufficient stock for ' + sku + '. Current=' + oldStock + ', requested=' + qty);
   }
+  var namaProduk = String(row.Nama_Produk || product.Nama_Produk || '').trim();
+  var actor = String(row.Input_By || defaultActor || 'SYSTEM').trim();
+  var logReference = outId;
+  updateProductStockFields_(productRef.sheet, productRef.rowNumber, newStock, {
+    Status_Stok: calculateStockStatus_(newStock, product.Minimum_Stok),
+    Status_Produk: normalizeText_(product.Status_Produk) === cfg.statuses.inactive ? cfg.statuses.inactive : cfg.statuses.active,
+    Last_Updated: new Date(),
+    Updated_By: actor
+  });
 
-  if (rowObject.In_ID) {
-    assertUniqueValueInSheet_(SHEETS.STOCK_IN, 'In_ID', rowObject.In_ID, rowNumber);
-  }
+  appendInventoryLog_({
+    SKU: sku,
+    Nama_Produk: namaProduk,
+    Tipe_Log: 'STOCK_OUT',
+    Qty_Change: -qty,
+    Stok_Sebelum: oldStock,
+    Stok_Sesudah: newStock,
+    Reference_ID: logReference,
+    Note: String(row.Jenis_Keluar || '') + ' ' + String(refId || '') + ' ' + String(row.Catatan || ''),
+    Actor: actor
+  });
+  return { skipped: false, message: 'STOCK_OUT processed: ' + outId + ' / ' + sku + ' -' + qty };
 }
 
-function validateStockOutRowData_(rowObject, rowNumber) {
-  if (!rowObject.Tanggal) {
-    throw new Error('Tanggal wajib diisi pada STOCK_OUT row ' + rowNumber);
+/**
+ * Protects website ORDER stock-out audit rows from being processed again.
+ */
+function isStockOutOrderReferenceProcessed_(rowObject, referenceId) {
+  if (!referenceId) {
+    return false;
   }
-
-  if (!String(rowObject.SKU || '').trim()) {
-    throw new Error('SKU wajib diisi pada STOCK_OUT row ' + rowNumber);
+  var jenisKeluar = normalizeText_(rowObject.Jenis_Keluar);
+  if (jenisKeluar !== 'ORDER' && jenisKeluar !== 'WEBSITE_ORDER') {
+    return false;
   }
-
-  validateEnumValue_('Jenis_Keluar', rowObject.Jenis_Keluar, ENUMS.JENIS_KELUAR);
-  parsePositiveNumber_(rowObject.Qty_Keluar, 'Qty_Keluar');
-  parseNonNegativeNumber_(rowObject.Harga_Jual_Satuan, 'Harga_Jual_Satuan', true);
-
-  if (!findRowByValue_(SHEETS.MASTER_PRODUCTS, 'SKU', rowObject.SKU)) {
-    throw new Error('SKU wajib ada di MASTER_PRODUCTS untuk STOCK_OUT: ' + rowObject.SKU);
-  }
-
-  if (rowObject.Out_ID) {
-    assertUniqueValueInSheet_(SHEETS.STOCK_OUT, 'Out_ID', rowObject.Out_ID, rowNumber);
-  }
+  return inventoryReferenceExists_(referenceId, 'STOCK_OUT');
 }
 
-function applyStockInToMasterProduct_(product, stockAfter, hargaModalSatuan, actor) {
-  var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-  var rowNumber = product.__rowNumber;
-
-  sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Stok_Aktif')).setValue(stockAfter);
-  sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Harga_Modal')).setValue(hargaModalSatuan);
-  setCellValueRespectFormula_(sheet, rowNumber, 'Status_Stok', computeStatusStok_(stockAfter, product.Minimum_Stok));
-  sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Last_Updated')).setValue(new Date());
-  sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Updated_By')).setValue(actor);
-
-  syncMasterProductComputedFields_(product.SKU);
+/**
+ * Writes stock-related product fields without relying on fixed columns.
+ */
+function updateProductStockFields_(sheet, rowNumber, newStock, extraFields) {
+  var values = extraFields || {};
+  values.Stok_Aktif = newStock;
+  updateRowByHeaders_(sheet, rowNumber, values);
 }
 
-function applyStockOutToMasterProduct_(product, stockAfter, actor) {
-  var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-  var rowNumber = product.__rowNumber;
-
-  if (stockAfter < 0) {
-    throw new Error('Stok_Aktif tidak boleh minus untuk SKU ' + product.SKU);
+/**
+ * Ensures a STOCK_IN row has an In_ID before it can be processed.
+ */
+function ensureStockInIdUnlocked_(sheet, rowNumber, rowObject) {
+  var cfg = tvjConfig_();
+  var inId = String(rowObject.In_ID || '').trim();
+  if (inId !== '') {
+    return inId;
   }
-
-  sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Stok_Aktif')).setValue(stockAfter);
-  setCellValueRespectFormula_(sheet, rowNumber, 'Status_Stok', computeStatusStok_(stockAfter, product.Minimum_Stok));
-  sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Last_Updated')).setValue(new Date());
-  sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Updated_By')).setValue(actor);
-
-  syncMasterProductComputedFields_(product.SKU);
+  inId = generateOperationalId_('IN');
+  var map = getHeaderMap_(sheet);
+  sheet.getRange(rowNumber, requireColumn_(map, 'In_ID', cfg.sheets.stockIn)).setValue(inId);
+  rowObject.In_ID = inId;
+  return inId;
 }
 
-function resolveStockOutHargaJualSatuan_(rowObject, product) {
-  if (rowObject.Harga_Jual_Satuan !== '' && rowObject.Harga_Jual_Satuan !== null && rowObject.Harga_Jual_Satuan !== undefined) {
-    return parseNonNegativeNumber_(rowObject.Harga_Jual_Satuan, 'Harga_Jual_Satuan');
+/**
+ * Ensures a STOCK_OUT row has an Out_ID before it can be processed.
+ */
+function ensureStockOutIdUnlocked_(sheet, rowNumber, rowObject) {
+  var cfg = tvjConfig_();
+  var outId = String(rowObject.Out_ID || '').trim();
+  if (outId !== '') {
+    return outId;
   }
-
-  if (normalizeString_(rowObject.Jenis_Keluar) === 'ORDER') {
-    return parseNonNegativeNumber_(product.Harga_Jual, 'Harga_Jual', true) || 0;
-  }
-
-  return 0;
+  outId = generateOperationalId_('OUT');
+  var map = getHeaderMap_(sheet);
+  sheet.getRange(rowNumber, requireColumn_(map, 'Out_ID', cfg.sheets.stockOut)).setValue(outId);
+  rowObject.Out_ID = outId;
+  return outId;
 }
 
-function buildStockInNote_(rowObject) {
-  var noteParts = [];
-
-  if (rowObject.Supplier) {
-    noteParts.push('Supplier: ' + rowObject.Supplier);
-  }
-
-  if (rowObject.Catatan) {
-    noteParts.push('Catatan: ' + rowObject.Catatan);
-  }
-
-  return noteParts.join(' | ');
+/**
+ * Returns whether negative stock is explicitly enabled in SETTINGS.
+ */
+function isNegativeStockAllowed_() {
+  return isTruthySetting_(getSettingValue_(tvjConfig_().settingsKeys.allowNegativeStock, 'FALSE'));
 }
 
-function buildStockOutNote_(rowObject) {
-  var noteParts = ['Jenis_Keluar: ' + rowObject.Jenis_Keluar];
-
-  if (rowObject.Referensi_ID) {
-    noteParts.push('Referensi_ID: ' + rowObject.Referensi_ID);
+/**
+ * Builds repeated column values for batch setValues calls.
+ */
+function repeatedColumn_(value, count) {
+  var values = [];
+  for (var i = 0; i < count; i++) {
+    values.push([value]);
   }
-
-  if (rowObject.Catatan) {
-    noteParts.push('Catatan: ' + rowObject.Catatan);
-  }
-
-  return noteParts.join(' | ');
-}
-
-function isStockInRowReady_(rowObject) {
-  return Boolean(
-    rowObject &&
-      rowObject.Tanggal &&
-      String(rowObject.SKU || '').trim() &&
-      rowObject.Qty_Masuk !== '' &&
-      rowObject.Harga_Modal_Satuan !== ''
-  );
-}
-
-function isStockOutRowReady_(rowObject) {
-  return Boolean(
-    rowObject &&
-      rowObject.Tanggal &&
-      String(rowObject.SKU || '').trim() &&
-      String(rowObject.Jenis_Keluar || '').trim() &&
-      rowObject.Qty_Keluar !== ''
-  );
+  return values;
 }

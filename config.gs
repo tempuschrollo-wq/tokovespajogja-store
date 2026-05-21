@@ -1,213 +1,243 @@
-var APP_TIMEZONE = 'Asia/Jakarta';
-var APP_CURRENCY = 'IDR';
-var ENABLE_ON_EDIT_AUTOMATION = false;
-var LOCK_WAIT_MS = 30000;
-var API_DEFAULT_LIMIT = 50;
-var API_MAX_LIMIT = 1000;
-var API_ORDER_DUPLICATE_WINDOW_SECONDS = 90;
-var API_RECENT_DUPLICATE_LOOKBACK_MINUTES = 5;
-var API_ORDER_RECONCILE_LOOKBACK_MINUTES = 30;
-
-var SHEETS = {
-  MASTER_PRODUCTS: 'MASTER_PRODUCTS',
-  STOCK_IN: 'STOCK_IN',
-  STOCK_OUT: 'STOCK_OUT',
-  ORDERS_WEBSITE: 'ORDERS_WEBSITE',
-  INVENTORY_LOG: 'INVENTORY_LOG',
-  SETTINGS: 'SETTINGS',
-  DASHBOARD: 'DASHBOARD',
-  WEEKLY_REPORT: 'WEEKLY_REPORT',
-  MONTHLY_REPORT: 'MONTHLY_REPORT',
-  API_LOG: 'API_LOG'
+/**
+ * Central configuration for the Toko Vespa Jogja inventory backend.
+ * Sheet names, required headers, API routes, and menu labels are kept here
+ * so the rest of the code does not rely on magic strings.
+ */
+var TVJ_CONFIG = {
+  appName: 'TVJ Inventory',
+  productIdPrefix: 'PRD-JVS-',
+  defaultTimezone: 'Asia/Jakarta',
+  defaultCurrency: 'IDR',
+  lockWaitMs: 30000,
+  apiLogPayloadLimit: 500,
+  apiLogResponseLimit: 500,
+  recentActivityLimit: 10,
+  sheets: {
+    master: 'MASTER_PRODUCTS',
+    stockIn: 'STOCK_IN',
+    stockOut: 'STOCK_OUT',
+    orders: 'ORDERS_WEBSITE',
+    inventoryLog: 'INVENTORY_LOG',
+    settings: 'SETTINGS',
+    dashboard: 'DASHBOARD',
+    weeklyReport: 'WEEKLY_REPORT',
+    monthlyReport: 'MONTHLY_REPORT',
+    apiLog: 'API_LOG',
+    apiLogArchive: 'API_LOG_ARCHIVE',
+    adminSpace: 'ADMIN_SPACE',
+    helper: 'Helper'
+  },
+  adminSpace: {
+    sheetName: 'ADMIN_SPACE',
+    masterStartRow: 20,
+    formRows: {
+      stockCorrection: { startRow: 7, endRow: 9 },
+      addProduct: { startRow: 13, endRow: 15 },
+      stockIn: { startRow: 7, endRow: 9 },
+      stockOut: { startRow: 13, endRow: 15 }
+    },
+    ranges: {
+      summary: 'A2:E3',
+      stockCorrection: 'A7:F9',
+      addProduct: 'A13:F15',
+      stockIn: 'H7:M9',
+      stockOut: 'H13:M15',
+      masterProducts: 'A20:J'
+    },
+    columns: {
+      stockCorrection: {
+        productOption: 1,
+        skuAuto: 2,
+        qty: 3,
+        reason: 4,
+        note: 5,
+        submit: 6
+      },
+      addProduct: {
+        name: 1,
+        category: 2,
+        hargaJual: 3,
+        hargaModal: 4,
+        stokAwal: 5,
+        submit: 6
+      },
+      stockIn: {
+        productOption: 8,
+        skuAuto: 9,
+        qty: 10,
+        hargaModal: 11,
+        note: 12,
+        submit: 13
+      },
+      stockOut: {
+        productOption: 8,
+        skuAuto: 9,
+        qty: 10,
+        hargaJual: 11,
+        note: 12,
+        submit: 13
+      },
+      adminMaster: {
+        productId: 1,
+        sku: 2,
+        namaProduk: 3,
+        kategori: 4,
+        stokIn: 5,
+        stokOut: 6,
+        balance: 7,
+        hargaJual: 8,
+        hargaModal: 9,
+        statusProduk: 10
+      }
+    }
+  },
+  headers: {
+    MASTER_PRODUCTS: [
+      'Product_ID',
+      'SKU',
+      'Nama_Produk',
+      'Kategori',
+      'Model_Vespa',
+      'Deskripsi_Singkat',
+      'Harga_Modal',
+      'Harga_Jual',
+      'Margin_Rp',
+      'Margin_Persen',
+      'Stok_Aktif',
+      'Minimum_Stok',
+      'Status_Stok',
+      'Status_Produk',
+      'Image_URL',
+      'Berat',
+      'Lokasi_Rak',
+      'Marketplace_SKU_Shopee',
+      'Marketplace_SKU_Tokopedia',
+      'Marketplace_SKU_TikTok',
+      'Last_Updated',
+      'Updated_By'
+    ],
+    STOCK_IN: [
+      'In_ID',
+      'Tanggal',
+      'SKU',
+      'Nama_Produk',
+      'Qty_Masuk',
+      'Harga_Modal_Satuan',
+      'Total_Modal_Masuk',
+      'Supplier',
+      'Catatan',
+      'Input_By'
+    ],
+    STOCK_OUT: [
+      'Out_ID',
+      'Tanggal',
+      'SKU',
+      'Nama_Produk',
+      'Jenis_Keluar',
+      'Reference_ID',
+      'Qty_Keluar',
+      'Harga_Jual_Satuan',
+      'Total_Penjualan',
+      'Catatan',
+      'Input_By'
+    ],
+    ORDERS_WEBSITE: [
+      'Order_ID',
+      'Order_Date',
+      'Customer_Nama',
+      'Customer_WhatsApp',
+      'Customer_Alamat',
+      'Item_JSON',
+      'SKU_List',
+      'Qty_Total',
+      'Subtotal',
+      'Ongkir',
+      'Grand_Total',
+      'Status_Order',
+      'Payment_Status',
+      'Source',
+      'Catatan',
+      'Created_At'
+    ],
+    INVENTORY_LOG: [
+      'Log_ID',
+      'Timestamp',
+      'SKU',
+      'Nama_Produk',
+      'Tipe_Log',
+      'Qty_Change',
+      'Stok_Sebelum',
+      'Stok_Sesudah',
+      'Reference_ID',
+      'Note',
+      'Actor'
+    ],
+    SETTINGS: [
+      'Key',
+      'Value',
+      'Description'
+    ],
+    API_LOG: [
+      'Timestamp',
+      'Method',
+      'Endpoint',
+      'Payload_Singkat',
+      'Status',
+      'Response_Singkat'
+    ],
+    API_LOG_ARCHIVE: [
+      'Timestamp',
+      'Method',
+      'Endpoint',
+      'Payload_Singkat',
+      'Status',
+      'Response_Singkat'
+    ]
+  },
+  menu: [
+    ['Process row STOCK_IN aktif', 'processActiveStockInRow'],
+    ['Process row STOCK_OUT aktif', 'processActiveStockOutRow'],
+    ['Process semua pending STOCK_IN', 'processAllPendingStockIn'],
+    ['Process semua pending STOCK_OUT', 'processAllPendingStockOut'],
+    ['Recompute semua Status_Stok', 'recomputeAllStockStatus'],
+    ['Validate MASTER_PRODUCTS', 'validateMasterProducts'],
+    ['Generate Product_ID yang kosong', 'generateMissingProductIds'],
+    ['Backfill margin produk', 'backfillProductMargins'],
+    ['Refresh DASHBOARD', 'refreshDashboard'],
+    ['Refresh semua reporting', 'refreshAllReporting'],
+    ['Install trigger reporting', 'installReportingTrigger'],
+    ['Backup spreadsheet sekarang', 'backupSpreadsheetNow'],
+    ['Jalankan Archive Sekarang', 'archiveOldLogsNow'],
+    ['Refresh ADMIN_SPACE', 'refreshAdminSpace'],
+    ['Unlock input ADMIN_SPACE', 'unlockAdminSpaceEditableAreas'],
+    ['Process submit ADMIN_SPACE', 'processAdminSpaceSubmits'],
+    ['Sync ADMIN_SPACE edits to MASTER_PRODUCTS', 'syncAdminMasterEditsToMaster']
+  ],
+  settingsKeys: {
+    adminToken: 'ADMIN_TOKEN',
+    timezone: 'Zona_Waktu',
+    currency: 'Mata_Uang',
+    backupFolderId: 'Backup_Folder_Id',
+    lastBackupTime: 'Last_Backup_Time',
+    logArchiveDays: 'Log_Archive_Days',
+    lowStockDefault: 'Low_Stock_Threshold_Default',
+    allowNegativeStock: 'Allow_Negative_Stock',
+    testMode: 'TEST_MODE'
+  },
+  statuses: {
+    active: 'AKTIF',
+    inactive: 'NONAKTIF',
+    ready: 'READY',
+    low: 'LOW',
+    outOfStock: 'OUT_OF_STOCK',
+    cancelled: 'CANCELLED',
+    cancelledId: 'DIBATALKAN'
+  }
 };
 
-var HEADERS = {};
-
-HEADERS[SHEETS.MASTER_PRODUCTS] = [
-  'Product_ID',
-  'SKU',
-  'Nama_Produk',
-  'Kategori',
-  'Model_Vespa',
-  'Deskripsi_Singkat',
-  'Harga_Modal',
-  'Harga_Jual',
-  'Margin_Rp',
-  'Margin_Persen',
-  'Stok_Aktif',
-  'Minimum_Stok',
-  'Status_Stok',
-  'Status_Produk',
-  'Image_URL',
-  'Berat',
-  'Lokasi_Rak',
-  'Marketplace_SKU_Shopee',
-  'Marketplace_SKU_Tokopedia',
-  'Marketplace_SKU_TikTok',
-  'Last_Updated',
-  'Updated_By'
-];
-
-HEADERS[SHEETS.STOCK_IN] = [
-  'In_ID',
-  'Tanggal',
-  'SKU',
-  'Nama_Produk',
-  'Qty_Masuk',
-  'Harga_Modal_Satuan',
-  'Total_Modal_Masuk',
-  'Supplier',
-  'Catatan',
-  'Input_By'
-];
-
-HEADERS[SHEETS.STOCK_OUT] = [
-  'Out_ID',
-  'Tanggal',
-  'SKU',
-  'Nama_Produk',
-  'Jenis_Keluar',
-  'Referensi_ID',
-  'Qty_Keluar',
-  'Harga_Jual_Satuan',
-  'Total_Penjualan',
-  'Catatan',
-  'Input_By'
-];
-
-HEADERS[SHEETS.ORDERS_WEBSITE] = [
-  'Order_ID',
-  'Order_Date',
-  'Customer_Nama',
-  'Customer_WhatsApp',
-  'Customer_Alamat',
-  'Item_JSON',
-  'SKU_List',
-  'Qty_Total',
-  'Subtotal',
-  'Ongkir',
-  'Grand_Total',
-  'Status_Order',
-  'Payment_Status',
-  'Source',
-  'Catatan',
-  'Created_At'
-];
-
-HEADERS[SHEETS.INVENTORY_LOG] = [
-  'Log_ID',
-  'Timestamp',
-  'SKU',
-  'Nama_Produk',
-  'Tipe_Log',
-  'Qty_Change',
-  'Stok_Sebelum',
-  'Stok_Sesudah',
-  'Reference_ID',
-  'Note',
-  'Actor'
-];
-
-HEADERS[SHEETS.SETTINGS] = [
-  'Key',
-  'Value',
-  'Description'
-];
-
-HEADERS[SHEETS.DASHBOARD] = [
-  'Metric_Group',
-  'Metric_Name',
-  'Metric_Value',
-  'Metric_Format',
-  'Last_Refreshed',
-  'Notes'
-];
-
-HEADERS[SHEETS.WEEKLY_REPORT] = [
-  'Week_Key',
-  'Period_Start',
-  'Period_End',
-  'Orders_Count',
-  'Units_Sold',
-  'Revenue',
-  'Estimated_COGS',
-  'Estimated_Gross_Profit',
-  'Stock_In_Qty',
-  'Stock_Out_Qty',
-  'Cancel_Count',
-  'Top_SKU',
-  'Low_Stock_Count',
-  'Generated_At'
-];
-
-HEADERS[SHEETS.MONTHLY_REPORT] = [
-  'Month_Key',
-  'Period_Start',
-  'Period_End',
-  'Orders_Count',
-  'Units_Sold',
-  'Revenue',
-  'Estimated_COGS',
-  'Estimated_Gross_Profit',
-  'Stock_In_Qty',
-  'Stock_Out_Qty',
-  'Cancel_Count',
-  'Top_SKU',
-  'Low_Stock_Count',
-  'Generated_At'
-];
-
-HEADERS[SHEETS.API_LOG] = [
-  'Timestamp',
-  'Method',
-  'Endpoint',
-  'Payload_Singkat',
-  'Status',
-  'Response_Singkat'
-];
-
-var ENUMS = {
-  STATUS_PRODUK: ['AKTIF', 'NONAKTIF'],
-  STATUS_STOK: ['READY', 'LOW', 'OUT OF STOCK'],
-  STATUS_ORDER: ['NEW', 'PROCESS', 'DONE', 'CANCEL'],
-  PAYMENT_STATUS: ['UNPAID', 'PAID'],
-  JENIS_KELUAR: ['ORDER', 'RUSAK', 'HILANG', 'MANUAL'],
-  INVENTORY_LOG_TYPE: ['STOCK_IN', 'STOCK_OUT'],
-  API_METHOD: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
-};
-
-var SETTINGS_KEYS = {
-  NAMA_TOKO: 'Nama_Toko',
-  NO_WHATSAPP: 'No_WhatsApp',
-  URL_WEBSITE: 'URL_Website',
-  URL_SHOPEE: 'URL_Shopee',
-  URL_TOKOPEDIA: 'URL_Tokopedia',
-  URL_INSTAGRAM: 'URL_Instagram',
-  URL_TIKTOK: 'URL_TikTok',
-  MATA_UANG: 'Mata_Uang',
-  ZONA_WAKTU: 'Zona_Waktu',
-  LOW_STOCK_THRESHOLD_DEFAULT: 'Low_Stock_Threshold_Default',
-  LOG_ARCHIVE_DAYS: 'Log_Archive_Days',
-  ARCHIVE_SPREADSHEET_ID: 'Archive_Spreadsheet_Id',
-  BACKUP_FOLDER_ID: 'Backup_Folder_Id',
-  LAST_BACKUP_TIME: 'Last_Backup_Time'
-};
-
-var ID_PREFIX = {
-  Product_ID: 'PRD',
-  In_ID: 'IN',
-  Out_ID: 'OUT',
-  Order_ID: 'ORD',
-  Log_ID: 'LOG'
-};
-
-var DEFAULT_VALUES = {
-  LOW_STOCK_THRESHOLD_DEFAULT: 0,
-  UPDATED_BY_FALLBACK: 'SYSTEM',
-  STATUS_PRODUK: 'AKTIF'
-};
-
-var SCRIPT_PROPERTY_KEYS = {
-  SPREADSHEET_ID: 'SPREADSHEET_ID',
-  ADMIN_API_TOKEN: 'ADMIN_API_TOKEN'
-};
+/**
+ * Returns a stable reference to the backend configuration.
+ */
+function tvjConfig_() {
+  return TVJ_CONFIG;
+}

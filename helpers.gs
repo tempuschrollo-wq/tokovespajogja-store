@@ -1,440 +1,400 @@
-var HEADER_CACHE = {};
-
+/**
+ * Returns the active spreadsheet used by this bound Apps Script project.
+ */
 function getSpreadsheet_() {
-  var spreadsheet = null;
-
-  try {
-    spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  } catch (error) {
-    spreadsheet = null;
-  }
-
-  if (spreadsheet) {
-    return spreadsheet;
-  }
-
-  var spreadsheetId = PropertiesService.getScriptProperties().getProperty(
-    SCRIPT_PROPERTY_KEYS.SPREADSHEET_ID
-  );
-
-  if (!spreadsheetId) {
-    throw new Error(
-      'Spreadsheet tidak bisa diakses dari konteks ini. Set Script Property SPREADSHEET_ID terlebih dahulu.'
-    );
-  }
-
-  return SpreadsheetApp.openById(spreadsheetId);
+  return SpreadsheetApp.getActiveSpreadsheet();
 }
 
-function getSheetOrThrow_(sheetName) {
+/**
+ * Gets a sheet by configured name and optionally throws when missing.
+ */
+function getSheet_(sheetName, required) {
   var sheet = getSpreadsheet_().getSheetByName(sheetName);
-  if (!sheet) {
-    throw new Error('Sheet tidak ditemukan: ' + sheetName);
+  if (!sheet && required !== false) {
+    throw new Error('Sheet not found: ' + sheetName);
   }
   return sheet;
 }
 
-function getHeaderMap_(sheetOrName) {
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
-  var cacheKey = sheet.getSheetId() + ':' + sheet.getName();
-  if (HEADER_CACHE[cacheKey]) {
-    return HEADER_CACHE[cacheKey];
+/**
+ * Creates a required operational sheet only when it is missing.
+ */
+function ensureSheet_(sheetName, headers) {
+  var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
   }
+  ensureHeaders_(sheet, headers);
+  return sheet;
+}
 
+/**
+ * Ensures a sheet has a header row. Existing non-empty headers are preserved.
+ */
+function ensureHeaders_(sheet, headers) {
+  if (!headers || headers.length === 0) {
+    return;
+  }
+  var lastColumn = Math.max(sheet.getLastColumn(), headers.length);
+  var existing = [];
+  if (sheet.getLastRow() >= 1 && lastColumn > 0) {
+    existing = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  }
+  var isEmpty = true;
+  for (var i = 0; i < existing.length; i++) {
+    if (String(existing[i] || '').trim() !== '') {
+      isEmpty = false;
+      break;
+    }
+  }
+  if (isEmpty) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+}
+
+/**
+ * Builds a case-sensitive header map from row 1. Values are 1-based columns.
+ */
+function getHeaderMap_(sheetOrName) {
+  var sheet = typeof sheetOrName === 'string' ? getSheet_(sheetOrName, true) : sheetOrName;
   var lastColumn = sheet.getLastColumn();
   if (lastColumn < 1) {
-    throw new Error('Sheet kosong tanpa header: ' + sheet.getName());
+    throw new Error('Sheet has no headers: ' + sheet.getName());
   }
-
-  var headerValues = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
-  var headerMap = {};
-
-  headerValues.forEach(function(header, index) {
-    var normalizedHeader = String(header || '').trim();
-    if (normalizedHeader) {
-      headerMap[normalizedHeader] = index + 1;
+  var values = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  var map = {};
+  for (var i = 0; i < values.length; i++) {
+    var header = String(values[i] || '').trim();
+    if (header !== '') {
+      map[header] = i + 1;
     }
-  });
-
-  HEADER_CACHE[cacheKey] = headerMap;
-  return headerMap;
+  }
+  return map;
 }
 
-function assertExpectedHeaders_(sheetOrName) {
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
-  var expectedHeaders = HEADERS[sheet.getName()];
-  if (!expectedHeaders || !expectedHeaders.length) {
-    return;
+/**
+ * Returns a required header column number or throws a readable error.
+ */
+function requireColumn_(headerMap, header, sheetName) {
+  if (!headerMap[header]) {
+    throw new Error('Missing header "' + header + '" in ' + sheetName);
   }
+  return headerMap[header];
+}
 
+/**
+ * Validates required headers for one sheet and returns the missing list.
+ */
+function findMissingHeaders_(sheetName, requiredHeaders) {
+  var sheet = getSheet_(sheetName, false);
+  if (!sheet) {
+    return requiredHeaders.slice();
+  }
+  var map = getHeaderMap_(sheet);
+  var missing = [];
+  for (var i = 0; i < requiredHeaders.length; i++) {
+    if (!map[requiredHeaders[i]]) {
+      missing.push(requiredHeaders[i]);
+    }
+  }
+  return missing;
+}
+
+/**
+ * Reads data rows as objects keyed by the sheet headers.
+ */
+function getRowsAsObjects_(sheetName) {
+  var sheet = getSheet_(sheetName, true);
   var headerMap = getHeaderMap_(sheet);
-  var missingHeaders = expectedHeaders.filter(function(header) {
-    return !headerMap[header];
-  });
-
-  if (missingHeaders.length) {
-    throw new Error(
-      'Header wajib belum lengkap di sheet ' +
-        sheet.getName() +
-        ': ' +
-        missingHeaders.join(', ')
-    );
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+  var rows = [];
+  if (lastRow < 2) {
+    return rows;
   }
+  var values = sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
+  var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  for (var r = 0; r < values.length; r++) {
+    var obj = { _rowNumber: r + 2 };
+    for (var c = 0; c < headers.length; c++) {
+      var key = String(headers[c] || '').trim();
+      if (key !== '') {
+        obj[key] = values[r][c];
+      }
+    }
+    rows.push(obj);
+  }
+  return rows;
 }
 
-function getColumnIndex_(sheetOrName, headerName) {
-  var headerMap = getHeaderMap_(sheetOrName);
-  var columnIndex = headerMap[headerName];
-  if (!columnIndex) {
-    var sheetName = typeof sheetOrName === 'string' ? sheetOrName : sheetOrName.getName();
-    throw new Error('Header "' + headerName + '" tidak ditemukan di sheet ' + sheetName);
+/**
+ * Reads a single row as an object keyed by the sheet headers.
+ */
+function getRowObject_(sheet, rowNumber) {
+  var lastColumn = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  var values = sheet.getRange(rowNumber, 1, 1, lastColumn).getValues()[0];
+  var obj = { _rowNumber: rowNumber };
+  for (var c = 0; c < headers.length; c++) {
+    var key = String(headers[c] || '').trim();
+    if (key !== '') {
+      obj[key] = values[c];
+    }
   }
-  return columnIndex;
+  return obj;
 }
 
-function getRowObject_(sheetOrName, rowNumber) {
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
+/**
+ * Appends an object row using the current sheet headers.
+ */
+function appendObjectRow_(sheetName, obj) {
+  var sheet = getSheet_(sheetName, true);
   var headerMap = getHeaderMap_(sheet);
   var lastColumn = sheet.getLastColumn();
-  var rowValues = sheet.getRange(rowNumber, 1, 1, lastColumn).getValues()[0];
-  var rowObject = { __rowNumber: rowNumber, __sheetName: sheet.getName() };
-
-  Object.keys(headerMap).forEach(function(header) {
-    rowObject[header] = rowValues[headerMap[header] - 1];
-  });
-
-  return rowObject;
-}
-
-function isRowCompletelyEmpty_(rowObject, fieldNames) {
-  return fieldNames.every(function(fieldName) {
-    var value = rowObject[fieldName];
-    return value === '' || value === null || value === undefined;
-  });
-}
-
-function findRowByValue_(sheetOrName, headerName, targetValue) {
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    return 0;
+  var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  var row = [];
+  for (var i = 0; i < headers.length; i++) {
+    var key = String(headers[i] || '').trim();
+    row.push(obj.hasOwnProperty(key) ? obj[key] : '');
   }
-
-  var columnIndex = getColumnIndex_(sheet, headerName);
-  var values = sheet.getRange(2, columnIndex, lastRow - 1, 1).getValues();
-  var normalizedTarget = normalizeString_(targetValue);
-
-  for (var index = 0; index < values.length; index += 1) {
-    if (normalizeString_(values[index][0]) === normalizedTarget) {
-      return index + 2;
-    }
-  }
-
-  return 0;
-}
-
-function assertUniqueValueInSheet_(sheetOrName, headerName, value, currentRow) {
-  if (value === '' || value === null || value === undefined) {
-    return;
-  }
-
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    return;
-  }
-
-  var columnIndex = getColumnIndex_(sheet, headerName);
-  var values = sheet.getRange(2, columnIndex, lastRow - 1, 1).getValues();
-  var target = normalizeString_(value);
-
-  for (var index = 0; index < values.length; index += 1) {
-    var rowNumber = index + 2;
-    if (rowNumber === currentRow) {
-      continue;
-    }
-
-    if (normalizeString_(values[index][0]) === target) {
-      throw new Error(
-        'Nilai "' +
-          value +
-          '" pada kolom ' +
-          headerName +
-          ' sudah dipakai di row ' +
-          rowNumber +
-          ' sheet ' +
-          sheet.getName()
-      );
-    }
-  }
-}
-
-function findProductRowBySku_(sku) {
-  var rowNumber = findRowByValue_(SHEETS.MASTER_PRODUCTS, 'SKU', sku);
-  if (!rowNumber) {
-    throw new Error('SKU tidak ditemukan di MASTER_PRODUCTS: ' + sku);
-  }
-  return rowNumber;
-}
-
-function getProductBySku_(sku) {
-  var rowNumber = findProductRowBySku_(sku);
-  var product = getRowObject_(SHEETS.MASTER_PRODUCTS, rowNumber);
-  product.__rowNumber = rowNumber;
-  return product;
-}
-
-function updateProductStock_(sku, nextStock, actor) {
-  var product = getProductBySku_(sku);
-  var normalizedStock = parseNonNegativeNumber_(nextStock, 'Stok_Aktif');
-  var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-
-  sheet.getRange(product.__rowNumber, getColumnIndex_(sheet, 'Stok_Aktif')).setValue(normalizedStock);
-  updateProductStockStatus_(sku);
-  stampMasterProductUpdate_(sku, actor);
-
-  return getProductBySku_(sku);
-}
-
-function updateProductStockStatus_(sku) {
-  var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-  var product = getProductBySku_(sku);
-  var status = computeStatusStok_(product.Stok_Aktif, product.Minimum_Stok);
-  setCellValueRespectFormula_(sheet, product.__rowNumber, 'Status_Stok', status);
-  return status;
-}
-
-function stampMasterProductUpdate_(sku, actor) {
-  var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-  var product = getProductBySku_(sku);
-  var effectiveActor = getCurrentActor_(actor);
-
-  sheet
-    .getRange(product.__rowNumber, getColumnIndex_(sheet, 'Last_Updated'))
-    .setValue(new Date());
-  sheet
-    .getRange(product.__rowNumber, getColumnIndex_(sheet, 'Updated_By'))
-    .setValue(effectiveActor);
-}
-
-function syncMasterProductComputedFields_(sku) {
-  var sheet = getSheetOrThrow_(SHEETS.MASTER_PRODUCTS);
-  var product = getProductBySku_(sku);
-  var hargaModal = parseNonNegativeNumber_(product.Harga_Modal, 'Harga_Modal', true);
-  var hargaJual = parseNonNegativeNumber_(product.Harga_Jual, 'Harga_Jual', true);
-  var marginRp = '';
-  var marginPersen = '';
-
-  if (hargaModal !== '' && hargaJual !== '') {
-    marginRp = hargaJual - hargaModal;
-    marginPersen = hargaModal > 0 ? (hargaJual - hargaModal) / hargaModal : '';
-  }
-
-  setCellValueRespectFormula_(sheet, product.__rowNumber, 'Margin_Rp', marginRp);
-  setCellValueRespectFormula_(sheet, product.__rowNumber, 'Margin_Persen', marginPersen);
-  updateProductStockStatus_(sku);
-}
-
-function computeStatusStok_(stockActive, minimumStock) {
-  var normalizedStock = parseNonNegativeNumber_(stockActive, 'Stok_Aktif');
-  var threshold = getMinimumStockThreshold_(minimumStock);
-
-  if (normalizedStock <= 0) {
-    return 'OUT OF STOCK';
-  }
-
-  if (normalizedStock <= threshold) {
-    return 'LOW';
-  }
-
-  return 'READY';
-}
-
-function getMinimumStockThreshold_(minimumStock) {
-  if (minimumStock !== '' && minimumStock !== null && minimumStock !== undefined) {
-    return Math.max(0, toNumber_(minimumStock));
-  }
-
-  return Math.max(
-    0,
-    toNumber_(getSettingValue_(SETTINGS_KEYS.LOW_STOCK_THRESHOLD_DEFAULT, DEFAULT_VALUES.LOW_STOCK_THRESHOLD_DEFAULT))
-  );
-}
-
-function getSettingValue_(key, defaultValue) {
-  var sheet = getSheetOrThrow_(SHEETS.SETTINGS);
-  var rowNumber = findRowByValue_(sheet, 'Key', key);
-  if (!rowNumber) {
-    return defaultValue;
-  }
-
-  return getRowObject_(sheet, rowNumber).Value;
-}
-
-function setSettingValue_(key, value, description) {
-  var sheet = getSheetOrThrow_(SHEETS.SETTINGS);
-  assertExpectedHeaders_(sheet);
-
-  var rowNumber = findRowByValue_(sheet, 'Key', key);
-  if (rowNumber) {
-    sheet.getRange(rowNumber, getColumnIndex_(sheet, 'Value')).setValue(value);
-
-    if (description !== undefined) {
-      sheet
-        .getRange(rowNumber, getColumnIndex_(sheet, 'Description'))
-        .setValue(description);
-    }
-
-    return rowNumber;
-  }
-
-  return appendRowObject_(sheet, {
-    Key: key,
-    Value: value,
-    Description: description || ''
-  });
-}
-
-function formatTimestampJakarta_(dateValue) {
-  return Utilities.formatDate(dateValue || new Date(), APP_TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
-}
-
-function generateUniqueId_(fieldName) {
-  var prefix = ID_PREFIX[fieldName];
-  if (!prefix) {
-    throw new Error('Prefix ID belum didefinisikan untuk field: ' + fieldName);
-  }
-
-  var stamp = Utilities.formatDate(new Date(), APP_TIMEZONE, 'yyyyMMddHHmmss');
-  var randomPart = Math.random()
-    .toString(36)
-    .slice(2, 8)
-    .toUpperCase();
-
-  return prefix + '-' + stamp + '-' + randomPart;
-}
-
-function validateEnumValue_(fieldName, value, allowedValues, allowBlank) {
-  var normalizedValue = normalizeString_(value);
-
-  if (!normalizedValue) {
-    if (allowBlank) {
-      return '';
-    }
-    throw new Error(fieldName + ' wajib diisi.');
-  }
-
-  var match = allowedValues.some(function(item) {
-    return normalizeString_(item) === normalizedValue;
-  });
-
-  if (!match) {
-    throw new Error(fieldName + ' tidak valid. Nilai yang diperbolehkan: ' + allowedValues.join(', '));
-  }
-
-  return String(value).trim().toUpperCase();
-}
-
-function getCurrentActor_(fallbackValue) {
-  if (fallbackValue !== '' && fallbackValue !== null && fallbackValue !== undefined) {
-    return String(fallbackValue).trim();
-  }
-
-  var email = '';
-  try {
-    email = Session.getActiveUser().getEmail();
-  } catch (error) {
-    email = '';
-  }
-
-  return email || DEFAULT_VALUES.UPDATED_BY_FALLBACK;
-}
-
-function normalizeString_(value) {
-  return String(value === null || value === undefined ? '' : value).trim().toUpperCase();
-}
-
-function toNumber_(value) {
-  if (value === '' || value === null || value === undefined) {
-    return 0;
-  }
-
-  if (typeof value === 'number') {
-    return value;
-  }
-
-  var cleaned = String(value)
-    .replace(/[^0-9,.\-]/g, '')
-    .replace(/,/g, '');
-  var numberValue = Number(cleaned);
-  return isNaN(numberValue) ? 0 : numberValue;
-}
-
-function parsePositiveNumber_(value, fieldName) {
-  var numberValue = toNumber_(value);
-  if (numberValue <= 0) {
-    throw new Error(fieldName + ' harus lebih besar dari 0.');
-  }
-  return numberValue;
-}
-
-function parseNonNegativeNumber_(value, fieldName, allowBlank) {
-  if (allowBlank && (value === '' || value === null || value === undefined)) {
-    return '';
-  }
-
-  var numberValue = toNumber_(value);
-  if (numberValue < 0) {
-    throw new Error(fieldName + ' tidak boleh negatif.');
-  }
-  return numberValue;
-}
-
-function setCellValueRespectFormula_(sheetOrName, rowNumber, headerName, value) {
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
-  var columnIndex = getColumnIndex_(sheet, headerName);
-  var range = sheet.getRange(rowNumber, columnIndex);
-  if (range.getFormula()) {
-    return false;
-  }
-  range.setValue(value);
-  return true;
-}
-
-function appendRowObject_(sheetOrName, rowObject) {
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
-  var headerValues = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var rowValues = headerValues.map(function(header) {
-    return rowObject[header] !== undefined ? rowObject[header] : '';
-  });
-  sheet.appendRow(rowValues);
+  sheet.appendRow(row);
   return sheet.getLastRow();
 }
 
-function ensureTransactionId_(sheetOrName, rowNumber, fieldName) {
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
-  var rowObject = getRowObject_(sheet, rowNumber);
-  var currentValue = rowObject[fieldName];
-
-  if (currentValue !== '' && currentValue !== null && currentValue !== undefined) {
-    assertUniqueValueInSheet_(sheet, fieldName, currentValue, rowNumber);
-    return String(currentValue).trim();
+/**
+ * Updates cells on one row by header names.
+ */
+function updateRowByHeaders_(sheet, rowNumber, valuesByHeader) {
+  var headerMap = getHeaderMap_(sheet);
+  for (var key in valuesByHeader) {
+    if (valuesByHeader.hasOwnProperty(key) && headerMap[key]) {
+      sheet.getRange(rowNumber, headerMap[key]).setValue(valuesByHeader[key]);
+    }
   }
-
-  var generatedId = generateUniqueId_(fieldName);
-  sheet.getRange(rowNumber, getColumnIndex_(sheet, fieldName)).setValue(generatedId);
-  return generatedId;
 }
 
-function withDocumentLock_(callback) {
-  var lock = LockService.getDocumentLock();
-  if (!lock.tryLock(LOCK_WAIT_MS)) {
-    var lockError = new Error('Sistem sedang memproses transaksi lain. Coba lagi beberapa detik.');
-    lockError.apiCode = 'LOCK_TIMEOUT';
-    lockError.apiStatus = 409;
-    throw lockError;
+/**
+ * Normalizes SKU values for matching.
+ */
+function normalizeSku_(sku) {
+  return String(sku || '').trim().toUpperCase();
+}
+
+/**
+ * Returns a normalized uppercase text value.
+ */
+function normalizeText_(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+/**
+ * Safely parses Indonesian and common currency formats to a number.
+ */
+function safeToNumber_(value) {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return 0;
+  }
+  if (typeof value === 'number') {
+    if (isNaN(value)) {
+      return 0;
+    }
+    return value;
+  }
+  var text = String(value).trim();
+  if (text === '') {
+    return 0;
+  }
+  var isNegative = false;
+  if (/^\(.*\)$/.test(text)) {
+    isNegative = true;
+  }
+  text = text.replace(/[()]/g, '');
+  text = text.replace(/rp/ig, '');
+  text = text.replace(/idr/ig, '');
+  text = text.replace(/\s/g, '');
+  text = text.replace(/[^0-9,\.\-]/g, '');
+  if (text.charAt(0) === '-') {
+    isNegative = true;
+    text = text.substring(1);
+  }
+  if (text === '') {
+    return 0;
   }
 
+  var lastComma = text.lastIndexOf(',');
+  var lastDot = text.lastIndexOf('.');
+  if (lastComma >= 0 && lastDot >= 0) {
+    if (lastComma > lastDot) {
+      text = text.replace(/\./g, '').replace(',', '.');
+    } else {
+      text = text.replace(/,/g, '');
+    }
+  } else if (lastComma >= 0) {
+    text = normalizeSingleSeparatorNumber_(text, ',');
+  } else if (lastDot >= 0) {
+    text = normalizeSingleSeparatorNumber_(text, '.');
+  }
+
+  var numberValue = parseFloat(text);
+  if (isNaN(numberValue)) {
+    return 0;
+  }
+  return isNegative ? -numberValue : numberValue;
+}
+
+/**
+ * Interprets a single separator as thousands when it has 3 trailing digits.
+ */
+function normalizeSingleSeparatorNumber_(text, separator) {
+  var escaped = separator === '.' ? '\\.' : ',';
+  var parts = text.split(separator);
+  if (parts.length > 2) {
+    return text.replace(new RegExp(escaped, 'g'), '');
+  }
+  if (parts.length === 2 && parts[1].length === 3) {
+    return parts[0] + parts[1];
+  }
+  if (parts.length === 2) {
+    return parts[0] + '.' + parts[1];
+  }
+  return text;
+}
+
+/**
+ * Returns true when a value can be treated as an enabled boolean.
+ */
+function isTruthySetting_(value) {
+  var text = normalizeText_(value);
+  return text === 'TRUE' || text === 'YES' || text === 'YA' || text === '1' || text === 'ON';
+}
+
+/**
+ * Returns the configured script timezone.
+ */
+function getConfiguredTimezone_() {
+  var cfg = tvjConfig_();
+  var setting = getSettingValue_(cfg.settingsKeys.timezone, '');
+  if (setting) {
+    return String(setting);
+  }
+  try {
+    return Session.getScriptTimeZone() || cfg.defaultTimezone;
+  } catch (err) {
+    return cfg.defaultTimezone;
+  }
+}
+
+/**
+ * Formats dates consistently for IDs, reports, and logs.
+ */
+function formatDate_(dateValue, pattern) {
+  return Utilities.formatDate(dateValue || new Date(), getConfiguredTimezone_(), pattern);
+}
+
+/**
+ * Pads a number with leading zeros.
+ */
+function padNumber_(numberValue, width) {
+  var text = String(numberValue);
+  while (text.length < width) {
+    text = '0' + text;
+  }
+  return text;
+}
+
+/**
+ * Builds a compact random uppercase token.
+ */
+function randomToken_(length) {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var token = '';
+  for (var i = 0; i < length; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+/**
+ * Generates a readable operational ID with timestamp and random suffix.
+ */
+function generateOperationalId_(prefix) {
+  return prefix + '-' + formatDate_(new Date(), 'yyyyMMddHHmmss') + '-' + randomToken_(4);
+}
+
+/**
+ * Reads a setting value from SETTINGS by key.
+ */
+function getSettingValue_(key, defaultValue) {
+  var cfg = tvjConfig_();
+  var sheet = getSheet_(cfg.sheets.settings, false);
+  if (!sheet || sheet.getLastRow() < 2) {
+    return defaultValue;
+  }
+  var map = getHeaderMap_(sheet);
+  var keyCol = requireColumn_(map, 'Key', cfg.sheets.settings);
+  var valueCol = requireColumn_(map, 'Value', cfg.sheets.settings);
+  var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][keyCol - 1] || '').trim() === key) {
+      var value = values[i][valueCol - 1];
+      return value === '' || typeof value === 'undefined' ? defaultValue : value;
+    }
+  }
+  return defaultValue;
+}
+
+/**
+ * Updates or appends a setting value.
+ */
+function setSettingValue_(key, value, description) {
+  var cfg = tvjConfig_();
+  var sheet = ensureSheet_(cfg.sheets.settings, cfg.headers.SETTINGS);
+  var map = getHeaderMap_(sheet);
+  var keyCol = requireColumn_(map, 'Key', cfg.sheets.settings);
+  var valueCol = requireColumn_(map, 'Value', cfg.sheets.settings);
+  var descriptionCol = map.Description || 0;
+  var lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    var keys = sheet.getRange(2, keyCol, lastRow - 1, 1).getValues();
+    for (var i = 0; i < keys.length; i++) {
+      if (String(keys[i][0] || '').trim() === key) {
+        sheet.getRange(i + 2, valueCol).setValue(value);
+        if (descriptionCol && typeof description !== 'undefined') {
+          sheet.getRange(i + 2, descriptionCol).setValue(description);
+        }
+        return i + 2;
+      }
+    }
+  }
+  var row = {};
+  row.Key = key;
+  row.Value = value;
+  row.Description = description || '';
+  return appendObjectRow_(cfg.sheets.settings, row);
+}
+
+/**
+ * Shows a toast when running from Sheets and always logs to Apps Script.
+ */
+function notifyUser_(message) {
+  Logger.log(message);
+  try {
+    getSpreadsheet_().toast(String(message), tvjConfig_().appName, 8);
+  } catch (err) {
+    Logger.log('Toast skipped: ' + err.message);
+  }
+  return message;
+}
+
+/**
+ * Runs a function inside a document lock.
+ */
+function withDocumentLock_(callback) {
+  var lock = LockService.getDocumentLock();
+  if (!lock.tryLock(tvjConfig_().lockWaitMs)) {
+    throw new Error('Could not acquire document lock. Please try again.');
+  }
   try {
     return callback();
   } finally {
@@ -442,15 +402,158 @@ function withDocumentLock_(callback) {
   }
 }
 
-function showUiAlert_(title, message) {
-  SpreadsheetApp.getUi().alert(title, message, SpreadsheetApp.getUi().ButtonSet.OK);
+/**
+ * Finds the first data row where a header equals a value.
+ */
+function findRowByHeaderValue_(sheetName, header, value) {
+  var sheet = getSheet_(sheetName, true);
+  var map = getHeaderMap_(sheet);
+  var col = requireColumn_(map, header, sheetName);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return null;
+  }
+  var values = sheet.getRange(2, col, lastRow - 1, 1).getValues();
+  var target = String(value || '').trim();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0] || '').trim() === target) {
+      return {
+        sheet: sheet,
+        rowNumber: i + 2,
+        object: getRowObject_(sheet, i + 2)
+      };
+    }
+  }
+  return null;
 }
 
-function showToast_(message) {
-  getSpreadsheet_().toast(message, 'Toko Vespa Jogja', 5);
+/**
+ * Builds a product lookup keyed by normalized SKU.
+ */
+function getProductLookupBySku_() {
+  var cfg = tvjConfig_();
+  var sheet = getSheet_(cfg.sheets.master, true);
+  var rows = getRowsAsObjects_(cfg.sheets.master);
+  var lookup = {};
+  for (var i = 0; i < rows.length; i++) {
+    var sku = normalizeSku_(rows[i].SKU);
+    if (sku !== '') {
+      lookup[sku] = {
+        sheet: sheet,
+        rowNumber: rows[i]._rowNumber,
+        object: rows[i]
+      };
+    }
+  }
+  return lookup;
 }
 
-function hasDataRows_(sheetOrName) {
-  var sheet = typeof sheetOrName === 'string' ? getSheetOrThrow_(sheetOrName) : sheetOrName;
-  return sheet.getLastRow() > 1;
+/**
+ * Returns whether a product status should be treated as active.
+ */
+function isActiveProduct_(product) {
+  var cfg = tvjConfig_();
+  var status = normalizeText_(product.Status_Produk);
+  return status !== cfg.statuses.inactive;
+}
+
+/**
+ * Calculates stock status from current stock and minimum stock.
+ */
+function calculateStockStatus_(stock, minimumStock) {
+  var cfg = tvjConfig_();
+  var current = safeToNumber_(stock);
+  var minimum = safeToNumber_(minimumStock);
+  if (current <= 0) {
+    return cfg.statuses.outOfStock;
+  }
+  if (current <= minimum) {
+    return cfg.statuses.low;
+  }
+  return cfg.statuses.ready;
+}
+
+/**
+ * Parses JSON safely with a caller-provided fallback value.
+ */
+function parseJsonSafe_(text, fallbackValue) {
+  if (typeof text === 'object' && text !== null) {
+    return text;
+  }
+  if (!text) {
+    return fallbackValue;
+  }
+  try {
+    return JSON.parse(String(text));
+  } catch (err) {
+    return fallbackValue;
+  }
+}
+
+/**
+ * Stringifies values without allowing circular structures to break logging.
+ */
+function stringifySafe_(value) {
+  try {
+    return JSON.stringify(value);
+  } catch (err) {
+    return String(value);
+  }
+}
+
+/**
+ * Truncates a text value for compact spreadsheet logs.
+ */
+function truncate_(value, maxLength) {
+  var text = typeof value === 'string' ? value : stringifySafe_(value);
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.substring(0, maxLength - 3) + '...';
+}
+
+/**
+ * Removes sensitive token-like fields before API logging.
+ */
+function sanitizeForLog_(value) {
+  var obj = parseJsonSafe_(value, value);
+  if (typeof obj !== 'object' || obj === null) {
+    return String(value || '');
+  }
+  var clone = {};
+  for (var key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      var lower = String(key).toLowerCase();
+      if (lower.indexOf('token') >= 0 || lower.indexOf('password') >= 0 || lower === 'authorization') {
+        clone[key] = '[REDACTED]';
+      } else {
+        clone[key] = obj[key];
+      }
+    }
+  }
+  return stringifySafe_(clone);
+}
+
+/**
+ * Returns whether two dates fall on the same configured calendar day.
+ */
+function isSameConfiguredDate_(a, b) {
+  return formatDate_(a, 'yyyy-MM-dd') === formatDate_(b, 'yyyy-MM-dd');
+}
+
+/**
+ * Converts a value to a Date or null.
+ */
+function asDateOrNull_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return value;
+  }
+  if (!value) {
+    return null;
+  }
+  var parsed = new Date(value);
+  if (isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
 }
