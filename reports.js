@@ -66,6 +66,8 @@ const state = {
   lowStockFilter: "all"
 }
 
+const LOW_STOCK_PREVIEW_LIMIT = 5
+
 const setStatus = (message) => {
   reportsStatus.textContent = message
 }
@@ -362,6 +364,12 @@ const getLowStockProducts = (products) =>
       )
     })
     .sort((left, right) => {
+      const leftStatus = getLowStockAuditStatus(left)
+      const rightStatus = getLowStockAuditStatus(right)
+      if (leftStatus !== rightStatus) {
+        return leftStatus === "out" ? -1 : 1
+      }
+
       if (left.stock !== right.stock) {
         return left.stock - right.stock
       }
@@ -490,8 +498,8 @@ const renderLowStockList = (products) => {
   lowStockSummaryLow.textContent = formatItemCount(counts.low)
   lowStockSummaryTotal.textContent = formatItemCount(counts.total)
   lowStockNote.textContent =
-    lowProducts.length > 12
-      ? `Menampilkan 12 dari ${formatItemCount(lowProducts.length)} produk yang perlu dicek.`
+    lowProducts.length > LOW_STOCK_PREVIEW_LIMIT
+      ? `Menampilkan ${formatItemCount(LOW_STOCK_PREVIEW_LIMIT)} dari ${formatItemCount(lowProducts.length)} produk yang perlu dicek.`
       : "Prioritas stok habis dan stok rendah."
 
   lowStockOpenButton.disabled = lowProducts.length === 0
@@ -505,7 +513,7 @@ const renderLowStockList = (products) => {
   }
 
   lowStockList.innerHTML = lowProducts
-    .slice(0, 12)
+    .slice(0, LOW_STOCK_PREVIEW_LIMIT)
     .map((product) => {
       const isOut = getLowStockAuditStatus(product) === "out"
       return `
@@ -515,7 +523,10 @@ const renderLowStockList = (products) => {
             <strong>${escapeHtml(product.name)}</strong>
             <small class="low-stock-meta">${escapeHtml(product.sku)} · ${escapeHtml(product.categoryLabel)}</small>
           </span>
-          <span class="low-stock-value">stok ${formatItemCount(product.stock)} / min ${formatItemCount(product.minimumStock)}</span>
+          <span class="low-stock-value">
+            <strong>${formatItemCount(product.stock)}</strong>
+            <small>min ${formatItemCount(product.minimumStock)}</small>
+          </span>
         </article>
       `
     })
