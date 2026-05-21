@@ -123,8 +123,21 @@
                   <p class="eyebrow">Low Stock Alert</p>
                   <h2>Produk yang perlu dicek stoknya</h2>
                 </div>
-                <span id="low-stock-note">Prioritas stok habis dan stok rendah.</span>
+                <div class="report-card-actions">
+                  <button class="admin-button admin-button-secondary" id="low-stock-open-button" type="button">
+                    Lihat semua
+                  </button>
+                  <button class="admin-button admin-button-secondary" id="low-stock-export-button" type="button">
+                    Export CSV
+                  </button>
+                </div>
               </div>
+              <div class="low-stock-summary" aria-label="Ringkasan produk perlu dicek">
+                <span><strong id="low-stock-summary-out">0</strong> Habis</span>
+                <span><strong id="low-stock-summary-low">0</strong> Low</span>
+                <span><strong id="low-stock-summary-total">0</strong> Total</span>
+              </div>
+              <p class="low-stock-note" id="low-stock-note">Prioritas stok habis dan stok rendah.</p>
               <div class="low-stock-list" id="low-stock-list"></div>
             </article>
 
@@ -199,6 +212,58 @@
           <p class="sr-only" id="reports-status" aria-live="polite"></p>
         </section>
       </main>
+    </div>
+
+    <div class="report-modal" id="low-stock-modal" hidden>
+      <div class="report-modal-backdrop" data-low-stock-close></div>
+      <section
+        class="report-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="low-stock-modal-title"
+      >
+        <div class="report-modal-head">
+          <div>
+            <p class="eyebrow">Audit Stok</p>
+            <h2 id="low-stock-modal-title">Semua produk yang perlu dicek</h2>
+          </div>
+          <button class="modal-close-button" type="button" data-low-stock-close aria-label="Tutup audit stok">
+            &times;
+          </button>
+        </div>
+
+        <div class="low-stock-toolbar">
+          <label class="low-stock-search">
+            <span>Cari SKU / nama</span>
+            <input id="low-stock-search-input" type="search" placeholder="Contoh: JVS-0001 atau kampas" />
+          </label>
+          <div class="low-stock-filter" role="group" aria-label="Filter status stok">
+            <button class="is-active" type="button" data-low-stock-filter="all">Semua</button>
+            <button type="button" data-low-stock-filter="out">Habis</button>
+            <button type="button" data-low-stock-filter="low">Low Stock</button>
+          </div>
+          <button class="admin-button admin-button-primary" id="low-stock-modal-export-button" type="button">
+            Export CSV
+          </button>
+        </div>
+
+        <div class="low-stock-table-meta" id="low-stock-table-meta">0 produk</div>
+        <div class="low-stock-table-wrap">
+          <table class="product-table report-table low-stock-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>SKU</th>
+                <th>Nama Produk</th>
+                <th>Kategori</th>
+                <th>Stok Aktif</th>
+                <th>Minimum Stok</th>
+              </tr>
+            </thead>
+            <tbody id="low-stock-table-body"></tbody>
+          </table>
+        </div>
+      </section>
     </div>
 
     <script type="module" src="reports.js"></script>

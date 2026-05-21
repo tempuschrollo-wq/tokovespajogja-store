@@ -35,6 +35,17 @@ const dailySummaryNote = document.querySelector("#daily-summary-note")
 const dailyChart = document.querySelector("#daily-chart")
 const lowStockNote = document.querySelector("#low-stock-note")
 const lowStockList = document.querySelector("#low-stock-list")
+const lowStockSummaryOut = document.querySelector("#low-stock-summary-out")
+const lowStockSummaryLow = document.querySelector("#low-stock-summary-low")
+const lowStockSummaryTotal = document.querySelector("#low-stock-summary-total")
+const lowStockOpenButton = document.querySelector("#low-stock-open-button")
+const lowStockExportButton = document.querySelector("#low-stock-export-button")
+const lowStockModal = document.querySelector("#low-stock-modal")
+const lowStockSearchInput = document.querySelector("#low-stock-search-input")
+const lowStockFilterButtons = document.querySelectorAll("[data-low-stock-filter]")
+const lowStockModalExportButton = document.querySelector("#low-stock-modal-export-button")
+const lowStockTableMeta = document.querySelector("#low-stock-table-meta")
+const lowStockTableBody = document.querySelector("#low-stock-table-body")
 const weeklyPeriod = document.querySelector("#weekly-period")
 const weeklyMetrics = document.querySelector("#weekly-metrics")
 const weeklyTopProducts = document.querySelector("#weekly-top-products")
@@ -50,7 +61,9 @@ const state = {
   products: [],
   orders: [],
   loadedAt: null,
-  error: ""
+  error: "",
+  lowStockSearch: "",
+  lowStockFilter: "all"
 }
 
 const setStatus = (message) => {
@@ -332,6 +345,11 @@ const sortSalesEntry = (left, right) => {
   return right.revenue - left.revenue
 }
 
+const getLowStockAuditStatus = (product) => {
+  const status = normalizeText(product.stockStatus)
+  return product.stock <= 0 || status.includes("out") ? "out" : "low"
+}
+
 const getLowStockProducts = (products) =>
   products
     .filter((product) => {
@@ -344,14 +362,46 @@ const getLowStockProducts = (products) =>
       )
     })
     .sort((left, right) => {
-      const leftOut = left.stock <= 0 ? 0 : 1
-      const rightOut = right.stock <= 0 ? 0 : 1
-      if (leftOut !== rightOut) {
-        return leftOut - rightOut
+      if (left.stock !== right.stock) {
+        return left.stock - right.stock
       }
 
-      return left.stock - right.stock
+      if (left.minimumStock !== right.minimumStock) {
+        return left.minimumStock - right.minimumStock
+      }
+
+      return String(left.sku || left.name).localeCompare(String(right.sku || right.name), "id")
     })
+
+const getLowStockCounts = (products) =>
+  products.reduce(
+    (counts, product) => {
+      if (getLowStockAuditStatus(product) === "out") {
+        counts.out += 1
+      } else {
+        counts.low += 1
+      }
+      counts.total += 1
+      return counts
+    },
+    { out: 0, low: 0, total: 0 }
+  )
+
+const getFilteredLowStockProducts = () => {
+  const query = normalizeText(state.lowStockSearch)
+  return getLowStockProducts(state.products).filter((product) => {
+    const auditStatus = getLowStockAuditStatus(product)
+    if (state.lowStockFilter !== "all" && auditStatus !== state.lowStockFilter) {
+      return false
+    }
+
+    if (!query) {
+      return true
+    }
+
+    return normalizeText(`${product.sku} ${product.name}`).includes(query)
+  })
+}
 
 const getLastSevenDayStats = (orders, today) => {
   const days = Array.from({ length: 7 }, (_, index) => {
@@ -433,22 +483,31 @@ const renderRankList = (target, items, { emptyText = "Belum ada data.", limit = 
 
 const renderLowStockList = (products) => {
   const lowProducts = getLowStockProducts(products)
+  const counts = getLowStockCounts(lowProducts)
   kpiLowStock.textContent = formatItemCount(lowProducts.length)
-  kpiOutStock.textContent = `${formatItemCount(lowProducts.filter((product) => product.stock <= 0).length)} stok habis`
+  kpiOutStock.textContent = `${formatItemCount(counts.out)} stok habis`
+  lowStockSummaryOut.textContent = formatItemCount(counts.out)
+  lowStockSummaryLow.textContent = formatItemCount(counts.low)
+  lowStockSummaryTotal.textContent = formatItemCount(counts.total)
   lowStockNote.textContent =
     lowProducts.length > 12
       ? `Menampilkan 12 dari ${formatItemCount(lowProducts.length)} produk yang perlu dicek.`
       : "Prioritas stok habis dan stok rendah."
 
+  lowStockOpenButton.disabled = lowProducts.length === 0
+  lowStockExportButton.disabled = lowProducts.length === 0
+  lowStockModalExportButton.disabled = lowProducts.length === 0
+
   if (!lowProducts.length) {
     lowStockList.innerHTML = `<div class="empty-report">Belum ada produk yang masuk alert stok.</div>`
+    renderLowStockAuditTable()
     return
   }
 
   lowStockList.innerHTML = lowProducts
     .slice(0, 12)
     .map((product) => {
-      const isOut = product.stock <= 0
+      const isOut = getLowStockAuditStatus(product) === "out"
       return `
         <article class="low-stock-item">
           <span class="stock-badge ${isOut ? "danger" : "low"}">${isOut ? "Habis" : "Low"}</span>
@@ -456,11 +515,110 @@ const renderLowStockList = (products) => {
             <strong>${escapeHtml(product.name)}</strong>
             <small class="low-stock-meta">${escapeHtml(product.sku)} · ${escapeHtml(product.categoryLabel)}</small>
           </span>
-          <span class="low-stock-value">stok ${formatItemCount(product.stock)}</span>
+          <span class="low-stock-value">stok ${formatItemCount(product.stock)} / min ${formatItemCount(product.minimumStock)}</span>
         </article>
       `
     })
     .join("")
+  renderLowStockAuditTable()
+}
+
+const renderLowStockAuditTable = () => {
+  if (!lowStockTableBody) {
+    return
+  }
+
+  const filteredProducts = getFilteredLowStockProducts()
+  lowStockTableMeta.textContent = `${formatItemCount(filteredProducts.length)} produk ditampilkan`
+  lowStockFilterButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.lowStockFilter === state.lowStockFilter)
+  })
+
+  if (!filteredProducts.length) {
+    lowStockTableBody.innerHTML = `
+      <tr>
+        <td colspan="6">Tidak ada produk yang cocok dengan pencarian/filter.</td>
+      </tr>
+    `
+    return
+  }
+
+  lowStockTableBody.innerHTML = filteredProducts
+    .map((product) => {
+      const auditStatus = getLowStockAuditStatus(product)
+      const isOut = auditStatus === "out"
+      return `
+        <tr>
+          <td><span class="stock-badge table-badge ${isOut ? "danger" : "low"}">${isOut ? "Habis" : "Low"}</span></td>
+          <td>${escapeHtml(product.sku)}</td>
+          <td>${escapeHtml(product.name)}</td>
+          <td>${escapeHtml(product.categoryLabel || getCategoryLabel(product.category))}</td>
+          <td>${formatItemCount(product.stock)}</td>
+          <td>${formatItemCount(product.minimumStock)}</td>
+        </tr>
+      `
+    })
+    .join("")
+}
+
+const getAuditCsvDate = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}`
+}
+
+const csvCell = (value) => {
+  const text = String(value ?? "")
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+}
+
+const exportLowStockCsv = () => {
+  const lowProducts = getLowStockProducts(state.products)
+  if (!lowProducts.length) {
+    setStatus("Tidak ada produk low/habis untuk diexport.")
+    return
+  }
+
+  const rows = [
+    ["Status", "SKU", "Nama Produk", "Kategori", "Stok Aktif", "Minimum Stok"],
+    ...lowProducts.map((product) => [
+      getLowStockAuditStatus(product) === "out" ? "Habis" : "Low",
+      product.sku,
+      product.name,
+      product.categoryLabel || getCategoryLabel(product.category),
+      product.stock,
+      product.minimumStock
+    ])
+  ]
+  const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n")
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `tvj-produk-perlu-dicek-${getAuditCsvDate()}.csv`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+  setStatus(`CSV audit stok diexport: ${formatItemCount(lowProducts.length)} produk.`)
+}
+
+const openLowStockModal = () => {
+  lowStockModal.hidden = false
+  document.body.classList.add("is-modal-open")
+  renderLowStockAuditTable()
+  lowStockSearchInput.focus()
+}
+
+const closeLowStockModal = () => {
+  lowStockModal.hidden = true
+  document.body.classList.remove("is-modal-open")
+  lowStockOpenButton.focus()
 }
 
 const renderDailyChart = (orders, today) => {
@@ -721,6 +879,29 @@ const init = () => {
   hydrateFromCache()
   refreshReportsButton.addEventListener("click", () => {
     void loadReports({ force: true })
+  })
+  lowStockOpenButton.addEventListener("click", openLowStockModal)
+  lowStockExportButton.addEventListener("click", exportLowStockCsv)
+  lowStockModalExportButton.addEventListener("click", exportLowStockCsv)
+  lowStockSearchInput.addEventListener("input", (event) => {
+    state.lowStockSearch = event.target.value
+    renderLowStockAuditTable()
+  })
+  lowStockFilterButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.lowStockFilter = button.dataset.lowStockFilter || "all"
+      renderLowStockAuditTable()
+    })
+  })
+  lowStockModal.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.matches("[data-low-stock-close]")) {
+      closeLowStockModal()
+    }
+  })
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !lowStockModal.hidden) {
+      closeLowStockModal()
+    }
   })
   void loadReports()
 }
