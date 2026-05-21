@@ -13,8 +13,9 @@ const PORT = Number(process.env.PORT || localConfig.port || 4173)
 const HOST = process.env.HOST || localConfig.host || "0.0.0.0"
 const APPS_SCRIPT_BASE_URL =
   process.env.TVJ_APPS_SCRIPT_URL || localConfig.appsScriptBaseUrl || ""
-const APPS_SCRIPT_TIMEOUT_MS = Number(
-  process.env.TVJ_APPS_SCRIPT_TIMEOUT_MS || localConfig.appsScriptTimeoutMs || 35_000
+const APPS_SCRIPT_TIMEOUT_MS = resolveTimeoutMs_(
+  process.env.TVJ_APPS_SCRIPT_TIMEOUT_MS || localConfig.appsScriptTimeoutMs,
+  35_000
 )
 const PUBLIC_ORIGIN = process.env.TVJ_PUBLIC_ORIGIN || localConfig.publicOrigin || ""
 
@@ -135,7 +136,8 @@ async function handleApiRequest(request, response, requestUrl) {
       success: true,
       message: "Proxy aktif.",
       data: {
-        apps_script_url: APPS_SCRIPT_BASE_URL
+        apps_script_url: APPS_SCRIPT_BASE_URL,
+        apps_script_timeout_ms: APPS_SCRIPT_TIMEOUT_MS
       },
       error: null
     })
@@ -397,6 +399,11 @@ function extractTotalPagesFromPayload_(payload) {
     1
   const parsed = Number(totalPages)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+}
+
+function resolveTimeoutMs_(value, fallback) {
+  const timeoutMs = Number(value || fallback)
+  return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : fallback
 }
 
 async function getCachedPayload_(key, ttlMs, factory) {

@@ -540,6 +540,12 @@ button {
   color: var(--olive);
 }
 
+.admin-button.is-loading,
+.row-action.is-loading {
+  cursor: progress;
+  opacity: 0.78;
+}
+
 .dashboard {
   display: grid;
   gap: 16px;

@@ -33,6 +33,7 @@ import {
   fetchLiveCatalog,
   fetchLiveDashboardSummary,
   hasAdminApiToken,
+  readCachedAdminMarketplaceHistory,
   readCachedAdminOrders,
   readCachedLiveCatalog,
   readCachedLiveDashboardSummary,
@@ -134,6 +135,7 @@ const editorTitle = document.querySelector("#editor-title")
 const editorSubtitle = document.querySelector("#editor-subtitle")
 const cancelEditButton = document.querySelector("#cancel-edit-button")
 const productForm = document.querySelector("#product-form")
+const productSubmitButton = productForm?.querySelector('button[type="submit"]')
 const productIdInput = document.querySelector("#product-id")
 const productNameInput = document.querySelector("#product-name")
 const productSkuInput = document.querySelector("#product-sku")
@@ -210,7 +212,11 @@ const state = {
   marketplaceHistoryError: "",
   marketplaceSearch: "",
   marketplaceSelectedProductId: "",
-  isSubmittingMarketplace: false
+  isSubmittingMarketplace: false,
+  isLoadingMarketplaceHistory: false,
+  isLoadingOrders: false,
+  isRefreshingCatalog: false,
+  isSavingProduct: false
 }
 
 let ordersSearchTimer = 0
@@ -247,8 +253,35 @@ const setStatus = (message, options = {}) => {
   }
 }
 
+const setButtonPending = (button, isPending, pendingText = "Memproses...") => {
+  if (!button) {
+    return
+  }
+
+  if (!button.dataset.defaultText) {
+    button.dataset.defaultText = button.textContent.trim()
+  }
+
+  button.disabled = isPending
+  button.classList.toggle("is-disabled", isPending)
+  button.classList.toggle("is-loading", isPending)
+  button.textContent = isPending ? pendingText : button.dataset.defaultText
+}
+
 const getAdminActionErrorMessage = (error) => {
   const rawMessage = String(error?.message || "")
+
+  if (error?.code === "ADMIN_UNAUTHORIZED") {
+    return rawMessage || "Token admin tidak valid. Simpan token admin yang benar lalu coba lagi."
+  }
+
+  if (error?.code === "SKU_NOT_FOUND") {
+    return rawMessage || "SKU tidak ditemukan di inventory live."
+  }
+
+  if (error?.code === "INSUFFICIENT_STOCK") {
+    return rawMessage || "Stok tidak cukup untuk transaksi ini."
+  }
 
   if (
     /admin\/order\/delete|admin\/product\/delete|Endpoint POST tidak ditemukan/i.test(rawMessage)
@@ -267,7 +300,7 @@ const getAdminActionErrorMessage = (error) => {
   if (error?.code === "ADMIN_ACTION_PENDING_CHECK") {
     return (
       rawMessage ||
-      "Koneksi sempat lambat. Sistem sedang mengecek hasil aksi admin terakhir. Refresh order dulu sebelum klik lagi."
+      "Belum bisa dikonfirmasi, jangan submit ulang dulu. Refresh data beberapa detik lagi."
     )
   }
 
@@ -852,31 +885,11 @@ const renderMarketplaceSection = () => {
 const setMarketplaceSubmitting = (isSubmitting) => {
   state.isSubmittingMarketplace = isSubmitting
 
-  ;[
-    marketplaceChannelSelect,
-    marketplaceProductSearchInput,
-    marketplaceProductSelect,
-    marketplaceQtyInput,
-    marketplacePriceInput,
-    marketplaceOrderNoInput,
-    marketplaceNoteInput,
-    marketplaceRefreshButton
-  ].forEach((field) => {
-    if (field) {
-      field.disabled = isSubmitting
-    }
-  })
-
   if (!marketplaceSubmitButton) {
     return
   }
 
-  marketplaceSubmitButton.disabled = isSubmitting
-  marketplaceSubmitButton.classList.toggle("is-disabled", isSubmitting)
-  marketplaceSubmitButton.classList.toggle("is-loading", isSubmitting)
-  marketplaceSubmitButton.textContent = isSubmitting
-    ? "Mencatat Transaksi..."
-    : "Catat Order"
+  setButtonPending(marketplaceSubmitButton, isSubmitting, "Memproses...")
 }
 
 const resetMarketplaceForm = () => {
@@ -905,10 +918,16 @@ const renderMarketplaceHistory = () => {
     return
   }
 
-  if (state.marketplaceHistoryError) {
+  if (state.marketplaceHistoryError && !state.marketplaceHistory.length) {
     marketplaceHistoryList.innerHTML = `
       <div class="marketplace-history-empty">${escapeHtml(state.marketplaceHistoryError)}</div>
     `
+    return
+  }
+
+  if (state.isLoadingMarketplaceHistory && !state.marketplaceHistory.length) {
+    marketplaceHistoryList.innerHTML =
+      '<div class="marketplace-history-empty">Data sedang disinkronkan...</div>'
     return
   }
 
@@ -948,7 +967,7 @@ const renderMarketplaceHistory = () => {
     .join("")
 }
 
-const loadMarketplaceHistory = async () => {
+const loadMarketplaceHistory = async ({ force = false } = {}) => {
   if (!hasAdminApiToken()) {
     state.marketplaceHistory = []
     state.marketplaceHistoryError = ""
@@ -956,19 +975,27 @@ const loadMarketplaceHistory = async () => {
     return false
   }
 
+  state.isLoadingMarketplaceHistory = true
+  renderMarketplaceHistory()
+
   try {
     const payload = await fetchAdminMarketplaceHistory({
-      limit: MARKETPLACE_HISTORY_LIMIT
+      limit: MARKETPLACE_HISTORY_LIMIT,
+      force
     })
     state.marketplaceHistory = Array.isArray(payload.items) ? payload.items : []
     state.marketplaceHistoryError = ""
   } catch (error) {
     console.error(error)
-    state.marketplaceHistory = []
+    if (!state.marketplaceHistory.length) {
+      state.marketplaceHistory = []
+    }
     state.marketplaceHistoryError =
       error.message || "Riwayat marketplace live gagal dimuat."
     renderMarketplaceHistory()
     return false
+  } finally {
+    state.isLoadingMarketplaceHistory = false
   }
 
   renderMarketplaceHistory()
@@ -1004,7 +1031,7 @@ const submitMarketplaceOrder = async () => {
   }
 
   setMarketplaceSubmitting(true)
-  updateMarketplaceInlineStatus("Transaksi sedang dikirim ke inventory live...")
+  updateMarketplaceInlineStatus("Transaksi sedang dikonfirmasi...")
 
   try {
     const response = await createAdminMarketplaceOrder({
@@ -1016,26 +1043,54 @@ const submitMarketplaceOrder = async () => {
       catatan
     })
 
-    await loadCatalogState({ force: true })
-    await loadMarketplaceHistory()
+    reduceProductStockInLocalCatalog(product.id, qty)
     renderDashboard()
     resetMarketplaceForm()
     updateMarketplaceInlineStatus(
-      `Order ${getMarketplaceChannelLabel(channel)} untuk ${product.name} berhasil dicatat.`,
+      response?.reconciled
+        ? `Order ${getMarketplaceChannelLabel(channel)} untuk ${product.name} sudah terkonfirmasi.`
+        : `Order ${getMarketplaceChannelLabel(channel)} untuk ${product.name} berhasil dicatat.`,
       "success"
     )
     setStatus(
-      `Order ${getMarketplaceChannelLabel(channel)} ${response.transaction?.referensi_id || product.sku} berhasil dicatat.`,
+      response?.reconciled
+        ? `Order ${getMarketplaceChannelLabel(channel)} ${response.transaction?.referensi_id || product.sku} terkonfirmasi setelah koneksi lambat.`
+        : `Order ${getMarketplaceChannelLabel(channel)} ${response.transaction?.referensi_id || product.sku} berhasil dicatat.`,
       {
         toast: true
       }
     )
+    void Promise.all([
+      loadCatalogState({ force: true }),
+      loadMarketplaceHistory({ force: true })
+    ])
+      .then(renderDashboard)
+      .catch((error) => {
+        console.error(error)
+        setStatus(
+          "Transaksi tersimpan, tapi data terbaru masih disinkronkan. Refresh data beberapa detik lagi.",
+          {
+            toast: true,
+            tone: "info"
+          }
+        )
+      })
   } catch (error) {
     console.error(error)
     updateMarketplaceInlineStatus(
-      error.message || "Order marketplace gagal dicatat. Coba lagi beberapa detik.",
-      "error"
+      error?.code === "ADMIN_ACTION_PENDING_CHECK"
+        ? "Belum bisa dikonfirmasi, jangan submit ulang dulu. Refresh data beberapa detik lagi."
+        : error.message || "Order marketplace gagal dicatat. Coba lagi beberapa detik.",
+      error?.code === "ADMIN_ACTION_PENDING_CHECK" ? "" : "error"
     )
+    if (error?.code === "ADMIN_ACTION_PENDING_CHECK") {
+      void Promise.all([
+        loadMarketplaceHistory({ force: true }),
+        loadCatalogState({ force: true })
+      ])
+        .then(renderDashboard)
+        .catch(console.error)
+    }
     throw error
   } finally {
     setMarketplaceSubmitting(false)
@@ -1152,6 +1207,12 @@ const refreshConnectorState = () => {
 }
 
 const updateDashboardHeadings = () => {
+  if (state.isRefreshingCatalog) {
+    dashboardNote.textContent = "Data sedang disinkronkan dengan inventory live..."
+    actionNote.textContent = "Kamu tetap bisa meninjau data terakhir sambil sinkronisasi berjalan."
+    return
+  }
+
   dashboardNote.textContent =
     "Data yang tampil di dashboard ini berasal langsung dari inventory live Google Sheet."
 
@@ -1266,6 +1327,24 @@ const setPendingOrderAction = (orderId, label = "") => {
   state.pendingOrderActions.set(orderId, label)
 }
 
+const getLocalStockPatch = (product, nextStock) => {
+  const stockStatus =
+    nextStock <= 0
+      ? "OUT OF STOCK"
+      : nextStock <= Number(product.minimumStock || 1)
+        ? "LOW"
+        : "READY"
+
+  return {
+    stock: nextStock,
+    stockIn: nextStock,
+    stockStatus,
+    availability: nextStock <= 0 ? "out" : stockStatus === "LOW" ? "low" : "ready",
+    availabilityLabel:
+      nextStock <= 0 ? "Stock Habis" : stockStatus === "LOW" ? "Stock Rendah" : "Ready"
+  }
+}
+
 const patchOrderInCurrentState = (orderId, patch = {}) => {
   state.orders = state.orders.map((order) =>
     order.order_id === orderId
@@ -1315,22 +1394,24 @@ const restoreOrderItemsToLocalCatalog = (orderId) => {
       return product
     }
 
-    const nextStock = Number(product.stock || 0) + qty
-    const stockStatus =
-      nextStock <= 0
-        ? "OUT OF STOCK"
-        : nextStock <= Number(product.minimumStock || 1)
-          ? "LOW"
-          : "READY"
+    return {
+      ...product,
+      ...getLocalStockPatch(product, Number(product.stock || 0) + qty)
+    }
+  })
+
+  state.productLookup = makeProductLookup(state.products)
+}
+
+const reduceProductStockInLocalCatalog = (productId, qty) => {
+  state.products = state.products.map((product) => {
+    if (product.id !== productId) {
+      return product
+    }
 
     return {
       ...product,
-      stock: nextStock,
-      stockIn: nextStock,
-      stockStatus,
-      availability: nextStock <= 0 ? "out" : stockStatus === "LOW" ? "low" : "ready",
-      availabilityLabel:
-        nextStock <= 0 ? "Stock Habis" : stockStatus === "LOW" ? "Stock Rendah" : "Ready"
+      ...getLocalStockPatch(product, Math.max(0, Number(product.stock || 0) - qty))
     }
   })
 
@@ -1487,6 +1568,22 @@ const renderOrdersTable = () => {
     return
   }
 
+  if (state.isLoadingOrders && !orders.length) {
+    ordersSummary.textContent = "Data order sedang disinkronkan..."
+    ordersPageLabel.textContent = "Hal 1 dari 1"
+    ordersPrevButton.disabled = true
+    ordersNextButton.disabled = true
+    ordersTableBody.innerHTML = `
+      <tr>
+        <td colspan="7"><span class="table-muted">Data order sedang disinkronkan...</span></td>
+      </tr>
+    `
+    topSellingNote.textContent = "Data sedang disinkronkan..."
+    renderTopSellingList()
+    renderOrderStatusStack()
+    return
+  }
+
   if (!orders.length) {
     ordersTotalCount.textContent = "0"
     ordersUnpaidCount.textContent = "0"
@@ -1600,10 +1697,12 @@ const renderOrdersTable = () => {
 
   ordersTableBody.appendChild(rowFragment)
   ordersMobileList.appendChild(mobileFragment)
-  ordersSummary.textContent = `${formatItemCount(totalOrders)} order ditemukan`
+  ordersSummary.textContent = state.isLoadingOrders
+    ? `${formatItemCount(totalOrders)} order ditemukan • sinkronisasi...`
+    : `${formatItemCount(totalOrders)} order ditemukan`
   ordersPageLabel.textContent = `Hal ${getOrderMetaValue("page", 1)} dari ${totalPages}`
-  ordersPrevButton.disabled = getOrderMetaValue("page", 1) <= 1
-  ordersNextButton.disabled = getOrderMetaValue("page", 1) >= totalPages
+  ordersPrevButton.disabled = state.isLoadingOrders || getOrderMetaValue("page", 1) <= 1
+  ordersNextButton.disabled = state.isLoadingOrders || getOrderMetaValue("page", 1) >= totalPages
   renderTopSellingList()
   renderOrderStatusStack()
 }
@@ -1787,17 +1886,21 @@ const renderDashboard = () => {
 }
 
 const loadCatalogState = async ({ force = false } = {}) => {
-  if (!force && state.products.length && state.dashboardSummary) {
-    return
+  state.isRefreshingCatalog = true
+  renderSummary()
+
+  try {
+    const [catalog, summary] = await Promise.all([
+      fetchLiveCatalog({ force }),
+      fetchLiveDashboardSummary({ force })
+    ])
+
+    applyCatalog(catalog.products)
+    state.dashboardSummary = summary
+  } finally {
+    state.isRefreshingCatalog = false
+    renderSummary()
   }
-
-  const [catalog, summary] = await Promise.all([
-    fetchLiveCatalog({ force }),
-    fetchLiveDashboardSummary({ force })
-  ])
-
-  applyCatalog(catalog.products)
-  state.dashboardSummary = summary
 }
 
 const hydrateCatalogStateFromCache = () => {
@@ -1849,10 +1952,27 @@ const hydrateOrdersStateFromCache = () => {
   return true
 }
 
+const hydrateMarketplaceHistoryFromCache = () => {
+  if (!hasAdminApiToken()) {
+    return false
+  }
+
+  const cachedHistory = readCachedAdminMarketplaceHistory()
+
+  if (!cachedHistory) {
+    return false
+  }
+
+  state.marketplaceHistory = Array.isArray(cachedHistory.items) ? cachedHistory.items : []
+  state.marketplaceHistoryError = ""
+  return true
+}
+
 const hydrateDashboardStateFromCache = () => {
   const hasCatalogCache = hydrateCatalogStateFromCache()
   const hasOrdersCache = hydrateOrdersStateFromCache()
-  const hasCachedState = hasCatalogCache || hasOrdersCache
+  const hasMarketplaceCache = hydrateMarketplaceHistoryFromCache()
+  const hasCachedState = hasCatalogCache || hasOrdersCache || hasMarketplaceCache
 
   if (hasCachedState) {
     renderDashboard()
@@ -1867,6 +1987,9 @@ const loadOrdersState = async ({ force = false } = {}) => {
     renderDashboard()
     return
   }
+
+  state.isLoadingOrders = true
+  renderOrdersTable()
 
   try {
     const ordersPayload = await fetchAdminOrdersList({
@@ -1894,24 +2017,27 @@ const loadOrdersState = async ({ force = false } = {}) => {
     }
   } catch (error) {
     console.error(error)
-    resetOrdersState()
+    if (!state.orders.length) {
+      resetOrdersState()
+    }
     state.orderLoadError = getOrdersLoadErrorMessage(error)
     setStatus(state.orderLoadError)
+  } finally {
+    state.isLoadingOrders = false
   }
 
   renderDashboard()
 }
 
 const loadLiveState = async ({ forceCatalog = false, includeOrders = true } = {}) => {
-  await loadCatalogState({ force: forceCatalog })
+  const tasks = [loadCatalogState({ force: forceCatalog })]
 
   if (includeOrders) {
-    await loadOrdersState()
-  } else {
-    renderDashboard()
+    tasks.push(loadOrdersState())
   }
 
-  await loadMarketplaceHistory()
+  tasks.push(loadMarketplaceHistory())
+  await Promise.all(tasks)
   renderDashboard()
 }
 
@@ -2008,7 +2134,8 @@ const saveProduct = async () => {
     })
   }
 
-  await loadLiveState({ forceCatalog: true, includeOrders: false })
+  await loadCatalogState({ force: true })
+  renderDashboard()
   clearEditor()
   setStatus(
     `${payload.nama_produk} berhasil ${isEditing ? "diperbarui" : "ditambahkan"} ke inventory live.`,
@@ -2037,7 +2164,8 @@ const deactivateProduct = async (productId) => {
     productId: product.id,
     sku: product.sku
   })
-  await loadLiveState({ forceCatalog: true, includeOrders: false })
+  await loadCatalogState({ force: true })
+  renderDashboard()
 
   if (state.editingId === productId) {
     clearEditor()
@@ -2414,6 +2542,7 @@ const bindEvents = () => {
 
   refreshLiveButton.addEventListener("click", async () => {
     try {
+      setButtonPending(refreshLiveButton, true, "Sinkronisasi...")
       await loadLiveState({ forceCatalog: true, includeOrders: true })
       setStatus("Data inventory live berhasil diperbarui.", {
         toast: true
@@ -2424,6 +2553,8 @@ const bindEvents = () => {
         toast: true,
         tone: "error"
       })
+    } finally {
+      setButtonPending(refreshLiveButton, false)
     }
   })
 
@@ -2460,7 +2591,8 @@ const bindEvents = () => {
 
   marketplaceRefreshButton?.addEventListener("click", async () => {
     try {
-      const isSuccess = await loadMarketplaceHistory()
+      setButtonPending(marketplaceRefreshButton, true, "Memuat...")
+      const isSuccess = await loadMarketplaceHistory({ force: true })
       renderMarketplaceSection()
 
       if (!isSuccess) {
@@ -2476,6 +2608,8 @@ const bindEvents = () => {
         toast: true,
         tone: "error"
       })
+    } finally {
+      setButtonPending(marketplaceRefreshButton, false)
     }
   })
 
@@ -2494,7 +2628,7 @@ const bindEvents = () => {
         getAdminActionErrorMessage(error) || "Order marketplace gagal dicatat ke inventory live.",
         {
           toast: true,
-          tone: "error"
+          tone: error?.code === "ADMIN_ACTION_PENDING_CHECK" ? "info" : "error"
         }
       )
     }
@@ -2587,25 +2721,31 @@ const bindEvents = () => {
 
     if (action === "deactivate") {
       try {
+        setButtonPending(trigger, true, "Memproses...")
         await deactivateProduct(productId)
       } catch (error) {
         console.error(error)
         setStatus(getAdminActionErrorMessage(error) || "Produk gagal dinonaktifkan.", {
           toast: true,
-          tone: "error"
+          tone: error?.code === "ADMIN_ACTION_PENDING_CHECK" ? "info" : "error"
         })
+      } finally {
+        setButtonPending(trigger, false)
       }
     }
 
     if (action === "delete") {
       try {
+        setButtonPending(trigger, true, "Memproses...")
         await deleteProductPermanently(productId)
       } catch (error) {
         console.error(error)
         setStatus(getAdminActionErrorMessage(error) || "Produk gagal dihapus permanen.", {
           toast: true,
-          tone: "error"
+          tone: error?.code === "ADMIN_ACTION_PENDING_CHECK" ? "info" : "error"
         })
+      } finally {
+        setButtonPending(trigger, false)
       }
     }
   }
@@ -2649,6 +2789,7 @@ const bindEvents = () => {
 
       setPendingOrderAction(orderId, pendingLabel)
       renderOrdersTable()
+      setStatus("Transaksi sedang dikonfirmasi...")
 
       if (action === "toggle-payment") {
         const order = state.orders.find((item) => item.order_id === orderId)
@@ -2763,7 +2904,7 @@ const bindEvents = () => {
       console.error(error)
       setStatus(getAdminActionErrorMessage(error) || "Aksi order gagal diproses.", {
         toast: true,
-        tone: "error"
+        tone: error?.code === "ADMIN_ACTION_PENDING_CHECK" ? "info" : "error"
       })
       if (error?.code === "ADMIN_ACTION_PENDING_CHECK") {
         await loadOrdersState({ force: true })
@@ -2817,13 +2958,18 @@ const bindEvents = () => {
     event.preventDefault()
 
     try {
+      state.isSavingProduct = true
+      setButtonPending(productSubmitButton, true, "Memproses...")
       await saveProduct()
     } catch (error) {
       console.error(error)
       setStatus(getAdminActionErrorMessage(error) || "Produk gagal disimpan ke inventory live.", {
         toast: true,
-        tone: "error"
+        tone: error?.code === "ADMIN_ACTION_PENDING_CHECK" ? "info" : "error"
       })
+    } finally {
+      state.isSavingProduct = false
+      setButtonPending(productSubmitButton, false)
     }
   })
 
