@@ -163,6 +163,33 @@ const pickReportNumber = (source, keys) => {
   return 0
 }
 
+// Reports money formatter that preserves negative values (estimated profit can be
+// negative). The shared formatRupiah clamps to 0 on purpose for product prices.
+const formatRupiahSigned = (value) => {
+  const amount = Math.round(Number(value) || 0)
+  return amount < 0 ? `-${formatRupiah(-amount)}` : formatRupiah(amount)
+}
+
+// Normalizes backend current weekly/monthly report data into the shape that
+// renderMetrics consumes, accepting both camelCase aliases and raw sheet metric
+// names.
+const buildBackendPeriodMetrics = (source) => ({
+  ordersCount: pickReportNumber(source, ["ordersCount", "Orders_Count"]),
+  unitsSold: pickReportNumber(source, ["unitsSold", "Units_Sold"]),
+  revenue: pickReportNumber(source, ["revenue", "Revenue"]),
+  cogs: pickReportNumber(source, ["estimatedCogs", "Estimated_COGS"]),
+  profit: pickReportNumber(source, ["estimatedGrossProfit", "Estimated_Gross_Profit"]),
+  missingCostItems: pickReportNumber(source, ["missingHppItems", "Missing_HPP_Items"]),
+  marketplaceOfflineCount: pickReportNumber(source, [
+    "marketplaceOfflineCount",
+    "Marketplace_Offline_Count"
+  ]),
+  stockInQty: pickReportNumber(source, ["stockInQty", "Stock_In_Qty"]),
+  stockOutQty: pickReportNumber(source, ["stockOutQty", "Stock_Out_Qty"]),
+  cancelCount: pickReportNumber(source, ["cancelCount", "Cancel_Count"]),
+  topSku: String((source && (source.topSku ?? source.Top_SKU)) || "").trim()
+})
+
 const parseOrderItems = (order) => {
   let rawItems = getOrderValue(order, ["items", "Items", "item_json", "Item_JSON"], [])
 
@@ -473,11 +500,11 @@ const renderMetrics = (target, report) => {
   target.innerHTML = [
     { label: "Total order", value: `${formatItemCount(report.ordersCount)} order` },
     { label: "Item keluar", value: `${formatItemCount(report.unitsSold)} item` },
-    { label: "Omzet produk", value: formatRupiah(report.revenue) },
-    { label: "Estimasi modal", value: formatRupiah(report.cogs) },
-    { label: "Estimasi profit", value: formatRupiah(report.profit) },
+    { label: "Omzet produk", value: formatRupiahSigned(report.revenue) },
+    { label: "Estimasi modal", value: formatRupiahSigned(report.cogs) },
+    { label: "Estimasi profit", value: formatRupiahSigned(report.profit) },
     { label: "HPP kosong", value: `${formatItemCount(report.missingCostItems)} item` },
-    { label: "Rata-rata order", value: formatRupiah(averageOrder) }
+    { label: "Rata-rata order", value: formatRupiahSigned(averageOrder) }
   ]
     .map(
       (item) => `
@@ -750,9 +777,9 @@ const renderMonthlyArchive = () => {
       (row) => `
         <tr>
           <td>${escapeHtml(String(row.period_key || row.period || "-"))}</td>
-          <td>${formatRupiah(toNumber(row.revenue))}</td>
+          <td>${formatRupiahSigned(toNumber(row.revenue))}</td>
           <td>${formatItemCount(toNumber(row.units_sold))}</td>
-          <td>${formatRupiah(toNumber(row.estimated_gross_profit))}</td>
+          <td>${formatRupiahSigned(toNumber(row.estimated_gross_profit))}</td>
           <td>${formatItemCount(toNumber(row.stock_out_qty))}</td>
         </tr>
       `
@@ -801,19 +828,19 @@ const renderReports = () => {
   const monthProfit = pickReportNumber(monthlyBackend, ["estimatedGrossProfit", "Estimated_Gross_Profit"])
 
   kpiTodayRevenue.textContent = formatRupiah(todayRevenue)
-  kpiTodayOrders.textContent = `${formatItemCount(todayReport.ordersCount)} order · ${formatItemCount(todayReport.unitsSold)} item · profit ${formatRupiah(todayProfit)}`
+  kpiTodayOrders.textContent = `${formatItemCount(todayReport.ordersCount)} order · ${formatItemCount(todayReport.unitsSold)} item · profit ${formatRupiahSigned(todayProfit)}`
   kpiWeekRevenue.textContent = formatRupiah(weekRevenue)
-  kpiWeekProfit.textContent = `Profit estimasi ${formatRupiah(weekProfit)}`
+  kpiWeekProfit.textContent = `Profit estimasi ${formatRupiahSigned(weekProfit)}`
   kpiMonthRevenue.textContent = formatRupiah(monthRevenue)
-  kpiMonthProfit.textContent = `Profit estimasi ${formatRupiah(monthProfit)}`
+  kpiMonthProfit.textContent = `Profit estimasi ${formatRupiahSigned(monthProfit)}`
 
   weeklyPeriod.textContent = formatDateRange(weekStart, weekEnd)
   monthlyPeriod.textContent = new Intl.DateTimeFormat("id-ID", {
     month: "long",
     year: "numeric"
   }).format(now)
-  renderMetrics(weeklyMetrics, weekReport)
-  renderMetrics(monthlyMetrics, monthReport)
+  renderMetrics(weeklyMetrics, buildBackendPeriodMetrics(weeklyBackend))
+  renderMetrics(monthlyMetrics, buildBackendPeriodMetrics(monthlyBackend))
   renderRankList(weeklyTopProducts, weekReport.topProducts, {
     emptyText: "Belum ada penjualan minggu ini.",
     limit: 5
