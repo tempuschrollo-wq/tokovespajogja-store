@@ -26,6 +26,9 @@ function routeApiRequest_(method, endpoint, payload) {
     if (endpoint === '/dashboard-summary' || endpoint === '/dashboard') {
       return apiDashboardSummary_();
     }
+    if (endpoint === '/reports/history') {
+      return apiReportsHistory_(payload);
+    }
     if (endpoint === '/health' || endpoint === '/ping') {
       return apiHealth_();
     }

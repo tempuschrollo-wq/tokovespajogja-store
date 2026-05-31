@@ -1,14 +1,25 @@
 /**
- * Adds the TVJ Inventory admin menu without changing existing menu labels.
+ * Adds a client-safe TVJ Inventory menu with technical actions grouped below it.
  */
 function onOpen() {
   var cfg = tvjConfig_();
   var ui = SpreadsheetApp.getUi();
   var menu = ui.createMenu(cfg.appName);
-  for (var i = 0; i < cfg.menu.length; i++) {
-    menu.addItem(cfg.menu[i][0], cfg.menu[i][1]);
+  addMenuItems_(menu, cfg.menu || []);
+
+  if (cfg.maintenanceMenu && cfg.maintenanceMenu.length > 0) {
+    var maintenanceMenu = ui.createMenu('Maintenance / Developer');
+    addMenuItems_(maintenanceMenu, cfg.maintenanceMenu);
+    menu.addSubMenu(maintenanceMenu);
   }
+
   menu.addToUi();
+}
+
+function addMenuItems_(menu, items) {
+  for (var i = 0; i < items.length; i++) {
+    menu.addItem(items[i][0], items[i][1]);
+  }
 }
 
 /**
@@ -34,4 +45,5 @@ function installReportingTrigger() {
  */
 function scheduledRefreshReporting_() {
   refreshAllReporting();
+  archivePreviousReports();
 }

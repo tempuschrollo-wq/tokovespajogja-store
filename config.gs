@@ -22,6 +22,8 @@ var TVJ_CONFIG = {
     dashboard: 'DASHBOARD',
     weeklyReport: 'WEEKLY_REPORT',
     monthlyReport: 'MONTHLY_REPORT',
+    weeklyReportHistory: 'WEEKLY_REPORT_HISTORY',
+    monthlyReportHistory: 'MONTHLY_REPORT_HISTORY',
     apiLog: 'API_LOG',
     apiLogArchive: 'API_LOG_ARCHIVE',
     adminSpace: 'ADMIN_SPACE',
@@ -29,22 +31,38 @@ var TVJ_CONFIG = {
   },
   adminSpace: {
     sheetName: 'ADMIN_SPACE',
-    masterStartRow: 20,
+    masterStartRow: 28,
     formRows: {
-      stockCorrection: { startRow: 7, endRow: 9 },
-      addProduct: { startRow: 13, endRow: 15 },
-      stockIn: { startRow: 7, endRow: 9 },
-      stockOut: { startRow: 13, endRow: 15 }
+      stockIn: { startRow: 7, endRow: 16 },
+      stockOut: { startRow: 7, endRow: 16 },
+      stockCorrection: { startRow: 20, endRow: 22 },
+      addProduct: { startRow: 20, endRow: 22 }
     },
     ranges: {
       summary: 'A2:E3',
-      stockCorrection: 'A7:F9',
-      addProduct: 'A13:F15',
-      stockIn: 'H7:M9',
-      stockOut: 'H13:M15',
-      masterProducts: 'A20:J'
+      stockIn: 'A7:F16',
+      stockOut: 'H7:M16',
+      stockCorrection: 'A20:F22',
+      addProduct: 'H20:M22',
+      masterProducts: 'A28:J'
     },
     columns: {
+      stockIn: {
+        productOption: 1,
+        skuAuto: 2,
+        qty: 3,
+        hargaModal: 4,
+        note: 5,
+        submit: 6
+      },
+      stockOut: {
+        productOption: 8,
+        skuAuto: 9,
+        qty: 10,
+        hargaJual: 11,
+        note: 12,
+        submit: 13
+      },
       stockCorrection: {
         productOption: 1,
         skuAuto: 2,
@@ -54,27 +72,11 @@ var TVJ_CONFIG = {
         submit: 6
       },
       addProduct: {
-        name: 1,
-        category: 2,
-        hargaJual: 3,
-        hargaModal: 4,
-        stokAwal: 5,
-        submit: 6
-      },
-      stockIn: {
-        productOption: 8,
-        skuAuto: 9,
-        qty: 10,
+        name: 8,
+        category: 9,
+        hargaJual: 10,
         hargaModal: 11,
-        note: 12,
-        submit: 13
-      },
-      stockOut: {
-        productOption: 8,
-        skuAuto: 9,
-        qty: 10,
-        hargaJual: 11,
-        note: 12,
+        stokAwal: 12,
         submit: 13
       },
       adminMaster: {
@@ -192,25 +194,49 @@ var TVJ_CONFIG = {
       'Payload_Singkat',
       'Status',
       'Response_Singkat'
+    ],
+    REPORT_HISTORY: [
+      'Period_Key',
+      'Period',
+      'Start',
+      'End',
+      'Orders_Count',
+      'Units_Sold',
+      'Revenue',
+      'Estimated_COGS',
+      'Estimated_Gross_Profit',
+      'Missing_HPP_Items',
+      'Profit_Warning',
+      'Marketplace_Offline_Count',
+      'Stock_In_Qty',
+      'Stock_Out_Qty',
+      'Cancel_Count',
+      'Top_SKU',
+      'Low_Stock_Count',
+      'Generated_At',
+      'Archived_At'
     ]
   },
   menu: [
+    ['Proses Input ADMIN_SPACE', 'processAdminSpaceSubmits'],
+    ['Refresh ADMIN_SPACE', 'refreshAdminSpace'],
+    ['Refresh Laporan', 'refreshAllReporting'],
+    ['Backup Sekarang', 'backupSpreadsheetNow'],
+    ['Cek Data Produk', 'validateMasterProducts']
+  ],
+  maintenanceMenu: [
     ['Process row STOCK_IN aktif', 'processActiveStockInRow'],
     ['Process row STOCK_OUT aktif', 'processActiveStockOutRow'],
     ['Process semua pending STOCK_IN', 'processAllPendingStockIn'],
     ['Process semua pending STOCK_OUT', 'processAllPendingStockOut'],
     ['Recompute semua Status_Stok', 'recomputeAllStockStatus'],
-    ['Validate MASTER_PRODUCTS', 'validateMasterProducts'],
-    ['Generate Product_ID yang kosong', 'generateMissingProductIds'],
+    ['Generate Product_ID + SKU yang kosong', 'generateMissingProductIdsAndSkus'],
+    ['Generate hanya Product_ID yang kosong', 'generateMissingProductIds'],
     ['Backfill margin produk', 'backfillProductMargins'],
-    ['Refresh DASHBOARD', 'refreshDashboard'],
-    ['Refresh semua reporting', 'refreshAllReporting'],
     ['Install trigger reporting', 'installReportingTrigger'],
-    ['Backup spreadsheet sekarang', 'backupSpreadsheetNow'],
+    ['Archive laporan minggu/bulan sebelumnya', 'archivePreviousReports'],
     ['Jalankan Archive Sekarang', 'archiveOldLogsNow'],
-    ['Refresh ADMIN_SPACE', 'refreshAdminSpace'],
     ['Unlock input ADMIN_SPACE', 'unlockAdminSpaceEditableAreas'],
-    ['Process submit ADMIN_SPACE', 'processAdminSpaceSubmits'],
     ['Sync ADMIN_SPACE edits to MASTER_PRODUCTS', 'syncAdminMasterEditsToMaster']
   ],
   settingsKeys: {

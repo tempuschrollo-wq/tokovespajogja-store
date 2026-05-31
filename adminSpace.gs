@@ -12,10 +12,12 @@ function refreshAdminSpace() {
   var stockInTotals = buildAdminSpaceStockTotalsBySku_(cfg.sheets.stockIn, 'SKU', 'Qty_Masuk');
   var stockOutTotals = buildAdminSpaceStockTotalsBySku_(cfg.sheets.stockOut, 'SKU', 'Qty_Keluar');
   var lastRow = adminSheet.getLastRow();
+  var masterStartCol = adminCfg.columns.adminMaster.productId;
+  var masterColumnCount = getAdminSpaceMasterColumnCount_(adminCfg);
 
   if (lastRow >= adminCfg.masterStartRow) {
     adminSheet
-      .getRange(adminCfg.masterStartRow, 1, lastRow - adminCfg.masterStartRow + 1, 10)
+      .getRange(adminCfg.masterStartRow, masterStartCol, lastRow - adminCfg.masterStartRow + 1, masterColumnCount)
       .clearContent();
   }
 
@@ -40,8 +42,9 @@ function refreshAdminSpace() {
   }
 
   if (output.length > 0) {
-    adminSheet.getRange(adminCfg.masterStartRow, 1, output.length, 10).setValues(output);
+    adminSheet.getRange(adminCfg.masterStartRow, masterStartCol, output.length, masterColumnCount).setValues(output);
   }
+  updateAdminSpaceInputNotes_(adminSheet, adminCfg);
 
   var metrics = callIfFunctionExists_('getDashboardMetrics_', function() {
     var fallback = {
@@ -71,7 +74,7 @@ function refreshAdminSpace() {
   });
 
   var totalProduk = typeof metrics.totalSku !== 'undefined' ? metrics.totalSku : metrics.totalProdukAktif;
-  adminSheet.getRange(2, 1, 2, 5).setValues([
+  adminSheet.getRange(adminCfg.ranges.summary).setValues([
     ['Total Produk', 'Low Stock', 'Out of Stock', 'Omzet Hari Ini', 'Profit Hari Ini'],
     [
       safeToNumber_(totalProduk),
@@ -90,21 +93,39 @@ function refreshAdminSpace() {
  */
 function processAdminSpaceSubmits() {
   return withDocumentLock_(function() {
+    var cfg = tvjConfig_();
     var adminCfg = getAdminSpaceConfig_();
     var adminSheet = getAdminSpaceSheet_();
     var processed = 0;
     var synced = 0;
+    var refreshedRows = 0;
     var errors = [];
+    var productLookup = getProductLookupBySku_();
 
     try {
-      synced = syncAdminMasterEditsToMasterUnlocked_();
+      synced = syncAdminMasterEditsToMasterUnlocked_(productLookup);
     } catch (err) {
       errors.push('Sync ADMIN_SPACE master: ' + err.message);
     }
 
+    var context = {
+      cfg: cfg,
+      adminCfg: adminCfg,
+      adminSheet: adminSheet,
+      productLookup: productLookup,
+      stockInAppend: buildAdminSpaceAppendContext_(getSheet_(cfg.sheets.stockIn, true)),
+      stockOutAppend: buildAdminSpaceAppendContext_(getSheet_(cfg.sheets.stockOut, true)),
+      masterAppend: buildAdminSpaceAppendContext_(getSheet_(cfg.sheets.master, true)),
+      touchedSkus: {},
+      stockInDeltaBySku: {},
+      stockOutDeltaBySku: {}
+    };
+
     var tasks = [
       {
         label: 'Stock correction',
+        range: adminCfg.ranges.stockCorrection,
+        columns: adminCfg.columns.stockCorrection,
         startRow: adminCfg.formRows.stockCorrection.startRow,
         endRow: adminCfg.formRows.stockCorrection.endRow,
         submitCol: adminCfg.columns.stockCorrection.submit,
@@ -112,6 +133,8 @@ function processAdminSpaceSubmits() {
       },
       {
         label: 'Add product',
+        range: adminCfg.ranges.addProduct,
+        columns: adminCfg.columns.addProduct,
         startRow: adminCfg.formRows.addProduct.startRow,
         endRow: adminCfg.formRows.addProduct.endRow,
         submitCol: adminCfg.columns.addProduct.submit,
@@ -119,6 +142,8 @@ function processAdminSpaceSubmits() {
       },
       {
         label: 'Stock in',
+        range: adminCfg.ranges.stockIn,
+        columns: adminCfg.columns.stockIn,
         startRow: adminCfg.formRows.stockIn.startRow,
         endRow: adminCfg.formRows.stockIn.endRow,
         submitCol: adminCfg.columns.stockIn.submit,
@@ -126,6 +151,8 @@ function processAdminSpaceSubmits() {
       },
       {
         label: 'Stock out',
+        range: adminCfg.ranges.stockOut,
+        columns: adminCfg.columns.stockOut,
         startRow: adminCfg.formRows.stockOut.startRow,
         endRow: adminCfg.formRows.stockOut.endRow,
         submitCol: adminCfg.columns.stockOut.submit,
@@ -134,13 +161,22 @@ function processAdminSpaceSubmits() {
     ];
 
     for (var t = 0; t < tasks.length; t++) {
-      for (var row = tasks[t].startRow; row <= tasks[t].endRow; row++) {
-        var submitValue = adminSheet.getRange(row, tasks[t].submitCol).getValue();
+      var sectionRange = adminSheet.getRange(tasks[t].range);
+      var sectionValues = sectionRange.getValues();
+      var sectionStartRow = sectionRange.getRow();
+      var sectionStartCol = sectionRange.getColumn();
+      for (var r = 0; r < sectionValues.length; r++) {
+        var row = sectionStartRow + r;
+        if (row < tasks[t].startRow || row > tasks[t].endRow) {
+          continue;
+        }
+        var rowValues = sectionValues[r];
+        var submitValue = getAdminSpaceRowValue_(rowValues, sectionStartCol, tasks[t].submitCol);
         if (submitValue !== true && normalizeText_(submitValue) !== 'TRUE') {
           continue;
         }
         try {
-          tasks[t].handler(adminSheet, row);
+          tasks[t].handler(adminSheet, row, context, rowValues, sectionStartCol);
           processed++;
         } catch (err) {
           errors.push(tasks[t].label + ' row ' + row + ': ' + err.message);
@@ -149,12 +185,12 @@ function processAdminSpaceSubmits() {
     }
 
     try {
-      refreshAdminSpace();
+      refreshedRows = refreshAdminSpaceAfterSubmit_(adminSheet, adminCfg, context);
     } catch (err) {
-      errors.push('Refresh ADMIN_SPACE: ' + err.message);
+      errors.push('Refresh ADMIN_SPACE ringan: ' + err.message);
     }
 
-    var message = 'Process ADMIN_SPACE submit: processed=' + processed + ', synced=' + synced + ', errors=' + errors.length;
+    var message = 'Process ADMIN_SPACE submit: processed=' + processed + ', synced=' + synced + ', mirror_rows_refreshed=' + refreshedRows + ', errors=' + errors.length;
     if (errors.length > 0) {
       message += '. First errors: ' + errors.slice(0, 10).join(' | ');
     }
@@ -176,25 +212,27 @@ function syncAdminMasterEditsToMaster() {
 /**
  * Syncs editable ADMIN_SPACE master fields back to MASTER_PRODUCTS by SKU.
  */
-function syncAdminMasterEditsToMasterUnlocked_() {
+function syncAdminMasterEditsToMasterUnlocked_(productLookup) {
   var adminCfg = getAdminSpaceConfig_();
   var adminSheet = getAdminSpaceSheet_();
-  var productLookup = getProductLookupBySku_();
+  productLookup = productLookup || getProductLookupBySku_();
   var cols = adminCfg.columns.adminMaster;
   var lastRow = adminSheet.getLastRow();
   var updated = 0;
+  var masterStartCol = cols.productId;
+  var masterColumnCount = getAdminSpaceMasterColumnCount_(adminCfg);
 
   if (lastRow < adminCfg.masterStartRow) {
     return 0;
   }
 
   var values = adminSheet
-    .getRange(adminCfg.masterStartRow, 1, lastRow - adminCfg.masterStartRow + 1, 10)
+    .getRange(adminCfg.masterStartRow, masterStartCol, lastRow - adminCfg.masterStartRow + 1, masterColumnCount)
     .getValues();
 
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
-    var sku = normalizeSku_(row[cols.sku - 1]);
+    var sku = normalizeSku_(row[cols.sku - masterStartCol]);
     if (sku === '' || !productLookup[sku]) {
       continue;
     }
@@ -203,11 +241,11 @@ function syncAdminMasterEditsToMasterUnlocked_() {
     var product = productRef.object;
     var updates = {};
     var priceChanged = false;
-    var namaProduk = String(row[cols.namaProduk - 1] || '').trim();
-    var kategori = String(row[cols.kategori - 1] || '').trim();
-    var hargaJual = safeToNumber_(row[cols.hargaJual - 1]);
-    var hargaModal = safeToNumber_(row[cols.hargaModal - 1]);
-    var statusProduk = String(row[cols.statusProduk - 1] || '').trim();
+    var namaProduk = String(row[cols.namaProduk - masterStartCol] || '').trim();
+    var kategori = String(row[cols.kategori - masterStartCol] || '').trim();
+    var hargaJual = safeToNumber_(row[cols.hargaJual - masterStartCol]);
+    var hargaModal = safeToNumber_(row[cols.hargaModal - masterStartCol]);
+    var statusProduk = String(row[cols.statusProduk - masterStartCol] || '').trim();
 
     if (namaProduk !== String(product.Nama_Produk || '').trim()) {
       updates.Nama_Produk = namaProduk;
@@ -238,6 +276,7 @@ function syncAdminMasterEditsToMasterUnlocked_() {
       updates.Last_Updated = new Date();
       updates.Updated_By = 'ADMIN_SPACE';
       updateRowByHeaders_(productRef.sheet, productRef.rowNumber, updates);
+      updateCachedProductObject_(productRef, updates);
       updated++;
     }
   }
@@ -248,15 +287,17 @@ function syncAdminMasterEditsToMasterUnlocked_() {
 /**
  * Handles one ADMIN_SPACE stock-in submit row.
  */
-function handleAdminSpaceStockInRow_(adminSheet, row) {
-  var cfg = tvjConfig_();
-  var cols = getAdminSpaceConfig_().columns.stockIn;
-  var productOption = adminSheet.getRange(row, cols.productOption).getValue();
-  var sku = normalizeSku_(adminSheet.getRange(row, cols.skuAuto).getValue()) || extractSkuFromProductOption_(productOption);
-  var qty = safeToNumber_(adminSheet.getRange(row, cols.qty).getValue());
-  var hargaModal = safeToNumber_(adminSheet.getRange(row, cols.hargaModal).getValue());
-  var note = String(adminSheet.getRange(row, cols.note).getValue() || '').trim();
-  var submit = adminSheet.getRange(row, cols.submit).getValue();
+function handleAdminSpaceStockInRow_(adminSheet, row, context, rowValues, rangeStartCol) {
+  context = context || {};
+  var cfg = context.cfg || tvjConfig_();
+  var adminCfg = context.adminCfg || getAdminSpaceConfig_();
+  var cols = adminCfg.columns.stockIn;
+  var productOption = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.productOption);
+  var sku = normalizeSku_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.skuAuto)) || extractSkuFromProductOption_(productOption);
+  var qty = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.qty));
+  var hargaModalInput = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.hargaModal));
+  var note = String(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.note) || '').trim();
+  var submit = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.submit);
 
   if (submit !== true && normalizeText_(submit) !== 'TRUE') {
     return false;
@@ -269,13 +310,15 @@ function handleAdminSpaceStockInRow_(adminSheet, row) {
     throw new Error('Qty Masuk must be greater than zero.');
   }
 
-  var productRef = getProductLookupBySku_()[sku];
+  var productLookup = context.productLookup || getProductLookupBySku_();
+  var productRef = productLookup[sku];
   if (!productRef) {
     throw new Error('SKU not found in MASTER_PRODUCTS: ' + sku);
   }
 
   var inId = generateOperationalId_('IN');
-  var appendedRow = appendObjectRow_(cfg.sheets.stockIn, {
+  var hargaModal = hargaModalInput > 0 ? hargaModalInput : safeToNumber_(productRef.object.Harga_Modal);
+  var stockInRow = {
     In_ID: inId,
     Tanggal: new Date(),
     SKU: sku,
@@ -286,8 +329,14 @@ function handleAdminSpaceStockInRow_(adminSheet, row) {
     Supplier: 'ADMIN_SPACE',
     Catatan: note,
     Input_By: 'ADMIN_SPACE'
+  };
+  var appendedRow = appendAdminSpaceObjectRow_(context.stockInAppend, cfg.sheets.stockIn, stockInRow);
+  stockInRow._rowNumber = appendedRow;
+  processStockInRowUnlocked_(context.stockInAppend ? context.stockInAppend.sheet : getSheet_(cfg.sheets.stockIn, true), appendedRow, 'ADMIN_SPACE', {
+    rowObject: stockInRow,
+    productLookup: productLookup
   });
-  processStockInRowUnlocked_(getSheet_(cfg.sheets.stockIn, true), appendedRow, 'ADMIN_SPACE');
+  markAdminSpaceStockDelta_(context, 'stockIn', sku, qty);
 
   clearAdminSpaceCells_(adminSheet, row, [cols.productOption, cols.qty, cols.hargaModal, cols.note]);
   setSubmitFalse_(adminSheet, row, cols.submit);
@@ -297,15 +346,17 @@ function handleAdminSpaceStockInRow_(adminSheet, row) {
 /**
  * Handles one ADMIN_SPACE stock-out submit row.
  */
-function handleAdminSpaceStockOutRow_(adminSheet, row) {
-  var cfg = tvjConfig_();
-  var cols = getAdminSpaceConfig_().columns.stockOut;
-  var productOption = adminSheet.getRange(row, cols.productOption).getValue();
-  var sku = normalizeSku_(adminSheet.getRange(row, cols.skuAuto).getValue()) || extractSkuFromProductOption_(productOption);
-  var qty = safeToNumber_(adminSheet.getRange(row, cols.qty).getValue());
-  var hargaJual = safeToNumber_(adminSheet.getRange(row, cols.hargaJual).getValue());
-  var note = String(adminSheet.getRange(row, cols.note).getValue() || '').trim();
-  var submit = adminSheet.getRange(row, cols.submit).getValue();
+function handleAdminSpaceStockOutRow_(adminSheet, row, context, rowValues, rangeStartCol) {
+  context = context || {};
+  var cfg = context.cfg || tvjConfig_();
+  var adminCfg = context.adminCfg || getAdminSpaceConfig_();
+  var cols = adminCfg.columns.stockOut;
+  var productOption = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.productOption);
+  var sku = normalizeSku_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.skuAuto)) || extractSkuFromProductOption_(productOption);
+  var qty = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.qty));
+  var hargaJualInput = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.hargaJual));
+  var note = String(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.note) || '').trim();
+  var submit = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.submit);
 
   if (submit !== true && normalizeText_(submit) !== 'TRUE') {
     return false;
@@ -318,13 +369,15 @@ function handleAdminSpaceStockOutRow_(adminSheet, row) {
     throw new Error('Qty Keluar must be greater than zero.');
   }
 
-  var productRef = getProductLookupBySku_()[sku];
+  var productLookup = context.productLookup || getProductLookupBySku_();
+  var productRef = productLookup[sku];
   if (!productRef) {
     throw new Error('SKU not found in MASTER_PRODUCTS: ' + sku);
   }
 
   var outId = generateOperationalId_('OUT');
-  var appendedRow = appendObjectRow_(cfg.sheets.stockOut, {
+  var hargaJual = hargaJualInput > 0 ? hargaJualInput : safeToNumber_(productRef.object.Harga_Jual);
+  var stockOutRow = {
     Out_ID: outId,
     Tanggal: new Date(),
     SKU: sku,
@@ -336,8 +389,14 @@ function handleAdminSpaceStockOutRow_(adminSheet, row) {
     Total_Penjualan: qty * hargaJual,
     Catatan: note,
     Input_By: 'ADMIN_SPACE'
+  };
+  var appendedRow = appendAdminSpaceObjectRow_(context.stockOutAppend, cfg.sheets.stockOut, stockOutRow);
+  stockOutRow._rowNumber = appendedRow;
+  processStockOutRowUnlocked_(context.stockOutAppend ? context.stockOutAppend.sheet : getSheet_(cfg.sheets.stockOut, true), appendedRow, 'ADMIN_SPACE', {
+    rowObject: stockOutRow,
+    productLookup: productLookup
   });
-  processStockOutRowUnlocked_(getSheet_(cfg.sheets.stockOut, true), appendedRow, 'ADMIN_SPACE');
+  markAdminSpaceStockDelta_(context, 'stockOut', sku, qty);
 
   clearAdminSpaceCells_(adminSheet, row, [cols.productOption, cols.qty, cols.hargaJual, cols.note]);
   setSubmitFalse_(adminSheet, row, cols.submit);
@@ -347,14 +406,16 @@ function handleAdminSpaceStockOutRow_(adminSheet, row) {
 /**
  * Handles one ADMIN_SPACE stock correction submit row.
  */
-function handleAdminSpaceStockCorrectionRow_(adminSheet, row) {
-  var cols = getAdminSpaceConfig_().columns.stockCorrection;
-  var productOption = adminSheet.getRange(row, cols.productOption).getValue();
-  var sku = normalizeSku_(adminSheet.getRange(row, cols.skuAuto).getValue()) || extractSkuFromProductOption_(productOption);
-  var qtyCorrection = safeToNumber_(adminSheet.getRange(row, cols.qty).getValue());
-  var reason = String(adminSheet.getRange(row, cols.reason).getValue() || '').trim();
-  var note = String(adminSheet.getRange(row, cols.note).getValue() || '').trim();
-  var submit = adminSheet.getRange(row, cols.submit).getValue();
+function handleAdminSpaceStockCorrectionRow_(adminSheet, row, context, rowValues, rangeStartCol) {
+  context = context || {};
+  var adminCfg = context.adminCfg || getAdminSpaceConfig_();
+  var cols = adminCfg.columns.stockCorrection;
+  var productOption = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.productOption);
+  var sku = normalizeSku_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.skuAuto)) || extractSkuFromProductOption_(productOption);
+  var qtyCorrection = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.qty));
+  var reason = String(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.reason) || '').trim();
+  var note = String(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.note) || '').trim();
+  var submit = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.submit);
 
   if (submit !== true && normalizeText_(submit) !== 'TRUE') {
     return false;
@@ -367,7 +428,8 @@ function handleAdminSpaceStockCorrectionRow_(adminSheet, row) {
     throw new Error('Qty Koreksi cannot be zero.');
   }
 
-  var productRef = getProductLookupBySku_()[sku];
+  var productLookup = context.productLookup || getProductLookupBySku_();
+  var productRef = productLookup[sku];
   if (!productRef) {
     throw new Error('SKU not found in MASTER_PRODUCTS: ' + sku);
   }
@@ -380,11 +442,13 @@ function handleAdminSpaceStockCorrectionRow_(adminSheet, row) {
     throw new Error('Stock correction would make stock negative for ' + sku + '. Current=' + oldStock + ', correction=' + qtyCorrection);
   }
 
-  updateProductStockFields_(productRef.sheet, productRef.rowNumber, newStock, {
+  var updates = {
     Status_Stok: calculateStockStatus_(newStock, product.Minimum_Stok),
     Last_Updated: new Date(),
     Updated_By: 'ADMIN_SPACE'
-  });
+  };
+  updateProductStockFields_(productRef.sheet, productRef.rowNumber, newStock, updates);
+  updateCachedProductObject_(productRef, updates);
   appendInventoryLog_({
     SKU: sku,
     Nama_Produk: product.Nama_Produk || extractNameFromProductOption_(productOption),
@@ -396,6 +460,7 @@ function handleAdminSpaceStockCorrectionRow_(adminSheet, row) {
     Note: 'ADMIN_SPACE | ' + reason + ' | ' + note,
     Actor: 'ADMIN_SPACE'
   });
+  markAdminSpaceTouchedSku_(context, sku);
 
   clearAdminSpaceCells_(adminSheet, row, [cols.productOption, cols.qty, cols.reason, cols.note]);
   setSubmitFalse_(adminSheet, row, cols.submit);
@@ -405,15 +470,17 @@ function handleAdminSpaceStockCorrectionRow_(adminSheet, row) {
 /**
  * Handles one ADMIN_SPACE add-product submit row.
  */
-function handleAdminSpaceAddProductRow_(adminSheet, row) {
-  var cfg = tvjConfig_();
-  var cols = getAdminSpaceConfig_().columns.addProduct;
-  var name = String(adminSheet.getRange(row, cols.name).getValue() || '').trim();
-  var category = String(adminSheet.getRange(row, cols.category).getValue() || '').trim();
-  var hargaJual = safeToNumber_(adminSheet.getRange(row, cols.hargaJual).getValue());
-  var hargaModal = safeToNumber_(adminSheet.getRange(row, cols.hargaModal).getValue());
-  var stokAwal = safeToNumber_(adminSheet.getRange(row, cols.stokAwal).getValue());
-  var submit = adminSheet.getRange(row, cols.submit).getValue();
+function handleAdminSpaceAddProductRow_(adminSheet, row, context, rowValues, rangeStartCol) {
+  context = context || {};
+  var cfg = context.cfg || tvjConfig_();
+  var adminCfg = context.adminCfg || getAdminSpaceConfig_();
+  var cols = adminCfg.columns.addProduct;
+  var name = String(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.name) || '').trim();
+  var category = String(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.category) || '').trim();
+  var hargaJual = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.hargaJual));
+  var hargaModal = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.hargaModal));
+  var stokAwal = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.stokAwal));
+  var submit = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.submit);
 
   if (submit !== true && normalizeText_(submit) !== 'TRUE') {
     return false;
@@ -436,7 +503,7 @@ function handleAdminSpaceAddProductRow_(adminSheet, row) {
   var marginRp = hargaJual > 0 ? hargaJual - hargaModal : 0;
   var marginPersen = hargaJual > 0 ? marginRp / hargaJual : 0;
 
-  appendObjectRow_(cfg.sheets.master, {
+  var productRow = {
     Product_ID: productId,
     SKU: sku,
     Nama_Produk: name,
@@ -451,11 +518,20 @@ function handleAdminSpaceAddProductRow_(adminSheet, row) {
     Status_Produk: cfg.statuses.active,
     Last_Updated: now,
     Updated_By: 'ADMIN_SPACE'
-  });
+  };
+  var masterRow = appendAdminSpaceObjectRow_(context.masterAppend, cfg.sheets.master, productRow);
+  productRow._rowNumber = masterRow;
+  if (context.productLookup) {
+    context.productLookup[sku] = {
+      sheet: context.masterAppend ? context.masterAppend.sheet : getSheet_(cfg.sheets.master, true),
+      rowNumber: masterRow,
+      object: productRow
+    };
+  }
 
   if (stokAwal > 0) {
     var inId = generateOperationalId_('IN');
-    var stockInRow = appendObjectRow_(cfg.sheets.stockIn, {
+    var stockInObject = {
       In_ID: inId,
       Tanggal: now,
       SKU: sku,
@@ -466,8 +542,16 @@ function handleAdminSpaceAddProductRow_(adminSheet, row) {
       Supplier: 'ADMIN_SPACE',
       Catatan: 'STOK_AWAL',
       Input_By: 'ADMIN_SPACE'
+    };
+    var stockInRow = appendAdminSpaceObjectRow_(context.stockInAppend, cfg.sheets.stockIn, stockInObject);
+    stockInObject._rowNumber = stockInRow;
+    processStockInRowUnlocked_(context.stockInAppend ? context.stockInAppend.sheet : getSheet_(cfg.sheets.stockIn, true), stockInRow, 'ADMIN_SPACE', {
+      rowObject: stockInObject,
+      productLookup: context.productLookup
     });
-    processStockInRowUnlocked_(getSheet_(cfg.sheets.stockIn, true), stockInRow, 'ADMIN_SPACE');
+    markAdminSpaceStockDelta_(context, 'stockIn', sku, stokAwal);
+  } else {
+    markAdminSpaceTouchedSku_(context, sku);
   }
 
   clearAdminSpaceCells_(adminSheet, row, [cols.name, cols.category, cols.hargaJual, cols.hargaModal, cols.stokAwal]);
@@ -500,8 +584,12 @@ function extractSkuFromProductOption_(text) {
  * Clears selected cells on one ADMIN_SPACE row.
  */
 function clearAdminSpaceCells_(sheet, row, columns) {
+  var ranges = [];
   for (var i = 0; i < columns.length; i++) {
-    sheet.getRange(row, columns[i]).clearContent();
+    ranges.push(sheet.getRange(row, columns[i]).getA1Notation());
+  }
+  if (ranges.length > 0) {
+    sheet.getRangeList(ranges).clearContent();
   }
 }
 
@@ -510,6 +598,183 @@ function clearAdminSpaceCells_(sheet, row, columns) {
  */
 function setSubmitFalse_(sheet, row, col) {
   sheet.getRange(row, col).setValue(false);
+}
+
+function getAdminSpaceRowValue_(rowValues, rangeStartCol, column) {
+  return rowValues[column - rangeStartCol];
+}
+
+function getAdminSpaceRowCell_(sheet, row, rowValues, rangeStartCol, column) {
+  if (rowValues) {
+    return getAdminSpaceRowValue_(rowValues, rangeStartCol, column);
+  }
+  return sheet.getRange(row, column).getValue();
+}
+
+function buildAdminSpaceAppendContext_(sheet) {
+  var lastColumn = sheet.getLastColumn();
+  return {
+    sheet: sheet,
+    headers: sheet.getRange(1, 1, 1, lastColumn).getValues()[0]
+  };
+}
+
+function appendAdminSpaceObjectRow_(appendContext, sheetName, obj) {
+  if (!appendContext) {
+    return appendObjectRow_(sheetName, obj);
+  }
+  var row = [];
+  for (var i = 0; i < appendContext.headers.length; i++) {
+    var key = String(appendContext.headers[i] || '').trim();
+    row.push(obj.hasOwnProperty(key) ? obj[key] : '');
+  }
+  appendContext.sheet.appendRow(row);
+  return appendContext.sheet.getLastRow();
+}
+
+function markAdminSpaceTouchedSku_(context, sku) {
+  if (!context || !context.touchedSkus) {
+    return;
+  }
+  context.touchedSkus[sku] = true;
+}
+
+function markAdminSpaceStockDelta_(context, type, sku, qty) {
+  markAdminSpaceTouchedSku_(context, sku);
+  if (!context) {
+    return;
+  }
+  var bucket = type === 'stockOut' ? context.stockOutDeltaBySku : context.stockInDeltaBySku;
+  if (!bucket) {
+    return;
+  }
+  bucket[sku] = safeToNumber_(bucket[sku]) + safeToNumber_(qty);
+}
+
+function refreshAdminSpaceAfterSubmit_(adminSheet, adminCfg, context) {
+  updateAdminSpaceInputNotes_(adminSheet, adminCfg);
+  var refreshedRows = refreshAdminSpaceTouchedMasterRows_(adminSheet, adminCfg, context);
+  refreshAdminSpaceSummaryFromLookup_(adminSheet, adminCfg, context.productLookup);
+  return refreshedRows;
+}
+
+function refreshAdminSpaceTouchedMasterRows_(adminSheet, adminCfg, context) {
+  var touchedSkus = context && context.touchedSkus ? context.touchedSkus : {};
+  var productLookup = context && context.productLookup ? context.productLookup : {};
+  var skus = Object.keys(touchedSkus);
+  if (skus.length === 0) {
+    return 0;
+  }
+
+  var cols = adminCfg.columns.adminMaster;
+  var startCol = cols.productId;
+  var columnCount = getAdminSpaceMasterColumnCount_(adminCfg);
+  var lastRow = Math.max(adminSheet.getLastRow(), adminCfg.masterStartRow - 1);
+  var rowCount = lastRow >= adminCfg.masterStartRow ? lastRow - adminCfg.masterStartRow + 1 : 0;
+  var mirrorBySku = {};
+  var mirrorValues = [];
+
+  if (rowCount > 0) {
+    mirrorValues = adminSheet.getRange(adminCfg.masterStartRow, startCol, rowCount, columnCount).getValues();
+    for (var i = 0; i < mirrorValues.length; i++) {
+      var mirrorSku = normalizeSku_(mirrorValues[i][cols.sku - startCol]);
+      if (mirrorSku !== '') {
+        mirrorBySku[mirrorSku] = {
+          rowNumber: adminCfg.masterStartRow + i,
+          values: mirrorValues[i]
+        };
+      }
+    }
+  }
+
+  var refreshed = 0;
+  var nextAppendRow = Math.max(adminSheet.getLastRow() + 1, adminCfg.masterStartRow);
+  var stockInDeltaBySku = context && context.stockInDeltaBySku ? context.stockInDeltaBySku : {};
+  var stockOutDeltaBySku = context && context.stockOutDeltaBySku ? context.stockOutDeltaBySku : {};
+  for (var s = 0; s < skus.length; s++) {
+    var sku = skus[s];
+    var productRef = productLookup[sku];
+    if (!productRef) {
+      continue;
+    }
+    var mirror = mirrorBySku[sku];
+    var currentValues = mirror ? mirror.values : [];
+    var stockInTotal = safeToNumber_(currentValues[cols.stokIn - startCol]) + safeToNumber_(stockInDeltaBySku[sku]);
+    var stockOutTotal = safeToNumber_(currentValues[cols.stokOut - startCol]) + safeToNumber_(stockOutDeltaBySku[sku]);
+    var output = buildAdminSpaceMasterOutputRow_(productRef.object, stockInTotal, stockOutTotal);
+    var targetRow = mirror ? mirror.rowNumber : nextAppendRow++;
+    adminSheet.getRange(targetRow, startCol, 1, columnCount).setValues([output]);
+    refreshed++;
+  }
+  return refreshed;
+}
+
+function buildAdminSpaceMasterOutputRow_(product, stockInTotal, stockOutTotal) {
+  return [
+    String(product.Product_ID || '').trim(),
+    normalizeSku_(product.SKU),
+    String(product.Nama_Produk || '').trim(),
+    String(product.Kategori || '').trim(),
+    safeToNumber_(stockInTotal),
+    safeToNumber_(stockOutTotal),
+    safeToNumber_(product.Stok_Aktif),
+    safeToNumber_(product.Harga_Jual),
+    safeToNumber_(product.Harga_Modal),
+    String(product.Status_Produk || '').trim()
+  ];
+}
+
+function refreshAdminSpaceSummaryFromLookup_(adminSheet, adminCfg, productLookup) {
+  var cfg = tvjConfig_();
+  productLookup = productLookup || {};
+  var metrics = {
+    totalSku: 0,
+    totalProdukAktif: 0,
+    low: 0,
+    outOfStock: 0
+  };
+
+  for (var sku in productLookup) {
+    if (!productLookup.hasOwnProperty(sku)) {
+      continue;
+    }
+    var product = productLookup[sku].object;
+    metrics.totalSku++;
+    if (normalizeText_(product.Status_Produk) !== cfg.statuses.inactive) {
+      metrics.totalProdukAktif++;
+    }
+    var status = normalizeText_(product.Status_Stok || calculateStockStatus_(product.Stok_Aktif, product.Minimum_Stok));
+    if (status === cfg.statuses.low) {
+      metrics.low++;
+    } else if (status === cfg.statuses.outOfStock) {
+      metrics.outOfStock++;
+    }
+  }
+
+  var existingSummary = adminSheet.getRange(adminCfg.ranges.summary).getValues();
+  var omzetHariIni = existingSummary[1] ? existingSummary[1][3] : 0;
+  var profitHariIni = existingSummary[1] ? existingSummary[1][4] : 0;
+  adminSheet.getRange(adminCfg.ranges.summary).setValues([
+    ['Total Produk', 'Low Stock', 'Out of Stock', 'Omzet Hari Ini', 'Profit Hari Ini'],
+    [
+      safeToNumber_(metrics.totalSku),
+      safeToNumber_(metrics.low),
+      safeToNumber_(metrics.outOfStock),
+      omzetHariIni,
+      profitHariIni
+    ]
+  ]);
+}
+
+function updateAdminSpaceInputNotes_(adminSheet, adminCfg) {
+  var stockInRows = adminCfg.formRows.stockIn.endRow - adminCfg.formRows.stockIn.startRow + 1;
+  var stockOutRows = adminCfg.formRows.stockOut.endRow - adminCfg.formRows.stockOut.startRow + 1;
+  adminSheet
+    .getRange(adminCfg.formRows.stockIn.startRow, adminCfg.columns.stockIn.hargaModal, stockInRows, 1)
+    .setNote('Kosongkan untuk memakai HPP/Harga Modal default dari MASTER_PRODUCTS. Isi manual hanya untuk modal kulakan khusus.');
+  adminSheet
+    .getRange(adminCfg.formRows.stockOut.startRow, adminCfg.columns.stockOut.hargaJual, stockOutRows, 1)
+    .setNote('Kosongkan untuk memakai Harga Jual default dari MASTER_PRODUCTS. Isi manual hanya untuk diskon, harga offline, bundle, atau harga khusus.');
 }
 
 /**
@@ -669,6 +934,7 @@ function unlockAdminSpaceEditableAreas() {
 
 function getAdminSpaceEditableRanges_(sheet) {
   var adminCfg = getAdminSpaceConfig_();
+  var adminMasterCols = adminCfg.columns.adminMaster;
   var ranges = [
     sheet.getRange(adminCfg.ranges.stockCorrection),
     sheet.getRange(adminCfg.ranges.addProduct),
@@ -678,10 +944,31 @@ function getAdminSpaceEditableRanges_(sheet) {
   var lastRow = Math.max(sheet.getLastRow(), adminCfg.masterStartRow);
   var masterRows = lastRow - adminCfg.masterStartRow + 1;
   if (masterRows > 0) {
-    ranges.push(sheet.getRange(adminCfg.masterStartRow, adminCfg.columns.adminMaster.namaProduk, masterRows, 2));
-    ranges.push(sheet.getRange(adminCfg.masterStartRow, adminCfg.columns.adminMaster.hargaJual, masterRows, 3));
+    ranges.push(sheet.getRange(
+      adminCfg.masterStartRow,
+      adminMasterCols.namaProduk,
+      masterRows,
+      adminMasterCols.kategori - adminMasterCols.namaProduk + 1
+    ));
+    ranges.push(sheet.getRange(
+      adminCfg.masterStartRow,
+      adminMasterCols.hargaJual,
+      masterRows,
+      adminMasterCols.statusProduk - adminMasterCols.hargaJual + 1
+    ));
   }
   return ranges;
+}
+
+function getAdminSpaceMasterColumnCount_(adminCfg) {
+  var cols = adminCfg.columns.adminMaster;
+  var maxColumn = 0;
+  for (var key in cols) {
+    if (cols.hasOwnProperty(key)) {
+      maxColumn = Math.max(maxColumn, cols[key]);
+    }
+  }
+  return maxColumn - cols.productId + 1;
 }
 
 function isAdminSpaceEditableRange_(range, editableRanges) {
@@ -718,22 +1005,38 @@ function getAdminSpaceConfig_() {
   }
   return {
     sheetName: cfg.sheets && cfg.sheets.adminSpace ? cfg.sheets.adminSpace : 'ADMIN_SPACE',
-    masterStartRow: 20,
+    masterStartRow: 28,
     formRows: {
-      stockCorrection: { startRow: 7, endRow: 9 },
-      addProduct: { startRow: 13, endRow: 15 },
-      stockIn: { startRow: 7, endRow: 9 },
-      stockOut: { startRow: 13, endRow: 15 }
+      stockIn: { startRow: 7, endRow: 16 },
+      stockOut: { startRow: 7, endRow: 16 },
+      stockCorrection: { startRow: 20, endRow: 22 },
+      addProduct: { startRow: 20, endRow: 22 }
     },
     ranges: {
       summary: 'A2:E3',
-      stockCorrection: 'A7:F9',
-      addProduct: 'A13:F15',
-      stockIn: 'H7:M9',
-      stockOut: 'H13:M15',
-      masterProducts: 'A20:J'
+      stockIn: 'A7:F16',
+      stockOut: 'H7:M16',
+      stockCorrection: 'A20:F22',
+      addProduct: 'H20:M22',
+      masterProducts: 'A28:J'
     },
     columns: {
+      stockIn: {
+        productOption: 1,
+        skuAuto: 2,
+        qty: 3,
+        hargaModal: 4,
+        note: 5,
+        submit: 6
+      },
+      stockOut: {
+        productOption: 8,
+        skuAuto: 9,
+        qty: 10,
+        hargaJual: 11,
+        note: 12,
+        submit: 13
+      },
       stockCorrection: {
         productOption: 1,
         skuAuto: 2,
@@ -743,27 +1046,11 @@ function getAdminSpaceConfig_() {
         submit: 6
       },
       addProduct: {
-        name: 1,
-        category: 2,
-        hargaJual: 3,
-        hargaModal: 4,
-        stokAwal: 5,
-        submit: 6
-      },
-      stockIn: {
-        productOption: 8,
-        skuAuto: 9,
-        qty: 10,
+        name: 8,
+        category: 9,
+        hargaJual: 10,
         hargaModal: 11,
-        note: 12,
-        submit: 13
-      },
-      stockOut: {
-        productOption: 8,
-        skuAuto: 9,
-        qty: 10,
-        hargaJual: 11,
-        note: 12,
+        stokAwal: 12,
         submit: 13
       },
       adminMaster: {

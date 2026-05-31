@@ -88,53 +88,136 @@ function validateMasterProducts() {
  * Generates Product_ID values for rows that are currently empty.
  */
 function generateMissingProductIds() {
+  return generateMissingProductIdsAndSkus_(false);
+}
+
+/**
+ * Generates Product_ID and SKU values for rows that are currently empty.
+ */
+function generateMissingProductIdsAndSkus() {
+  return generateMissingProductIdsAndSkus_(true);
+}
+
+function generateMissingProductIdsAndSkus_(includeSku) {
   var cfg = tvjConfig_();
   var sheet = getSheet_(cfg.sheets.master, true);
   var map = getHeaderMap_(sheet);
   var productIdCol = requireColumn_(map, 'Product_ID', cfg.sheets.master);
+  var skuCol = includeSku ? requireColumn_(map, 'SKU', cfg.sheets.master) : 0;
   var lastUpdatedCol = map.Last_Updated || 0;
   var updatedByCol = map.Updated_By || 0;
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) {
-    return notifyUser_('Generate Product_ID: no product rows.');
+    return notifyUser_(includeSku ? 'Generate Product_ID + SKU: no product rows.' : 'Generate Product_ID: no product rows.');
   }
 
-  var values = sheet.getRange(2, productIdCol, lastRow - 1, 1).getValues();
-  var used = {};
-  var maxNumber = 0;
+  var values = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  var productIdPrefix = cfg.productIdPrefix || 'PRD-JVS-';
+  var skuPrefix = 'JVS-';
+  var usedProductIds = {};
+  var usedSkus = {};
+  var maxProductIdNumber = 0;
+  var maxSkuNumber = 0;
   for (var i = 0; i < values.length; i++) {
-    var existing = String(values[i][0] || '').trim();
-    if (existing !== '') {
-      used[existing] = true;
-      if (existing.indexOf(cfg.productIdPrefix) === 0) {
-        var suffix = parseInt(existing.substring(cfg.productIdPrefix.length), 10);
-        if (!isNaN(suffix) && suffix > maxNumber) {
-          maxNumber = suffix;
+    var existingProductId = String(values[i][productIdCol - 1] || '').trim();
+    if (existingProductId !== '') {
+      usedProductIds[existingProductId] = true;
+      if (existingProductId.indexOf(productIdPrefix) === 0) {
+        var productIdSuffix = parseInt(existingProductId.substring(productIdPrefix.length), 10);
+        if (!isNaN(productIdSuffix) && productIdSuffix > maxProductIdNumber) {
+          maxProductIdNumber = productIdSuffix;
+        }
+      }
+    }
+
+    if (includeSku) {
+      var existingSku = normalizeSku_(values[i][skuCol - 1]);
+      if (existingSku !== '') {
+        usedSkus[existingSku] = true;
+        if (existingSku.indexOf(skuPrefix) === 0) {
+          var skuSuffix = parseInt(existingSku.substring(skuPrefix.length), 10);
+          if (!isNaN(skuSuffix) && skuSuffix > maxSkuNumber) {
+            maxSkuNumber = skuSuffix;
+          }
         }
       }
     }
   }
 
-  var generated = 0;
+  var generatedProductIds = 0;
+  var generatedSkus = 0;
+  var changedRows = 0;
+  var now = new Date();
   for (var r = 0; r < values.length; r++) {
-    if (String(values[r][0] || '').trim() === '') {
+    var changed = false;
+    if (String(values[r][productIdCol - 1] || '').trim() === '') {
       var nextId = '';
       do {
-        maxNumber++;
-        nextId = cfg.productIdPrefix + padNumber_(maxNumber, 4);
-      } while (used[nextId]);
-      used[nextId] = true;
-      sheet.getRange(r + 2, productIdCol).setValue(nextId);
+        maxProductIdNumber++;
+        nextId = productIdPrefix + padNumber_(maxProductIdNumber, 4);
+      } while (usedProductIds[nextId]);
+      usedProductIds[nextId] = true;
+      values[r][productIdCol - 1] = nextId;
+      generatedProductIds++;
+      changed = true;
+    }
+
+    if (includeSku && normalizeSku_(values[r][skuCol - 1]) === '') {
+      var nextSku = '';
+      do {
+        maxSkuNumber++;
+        nextSku = skuPrefix + padNumber_(maxSkuNumber, 4);
+      } while (usedSkus[nextSku]);
+      usedSkus[nextSku] = true;
+      values[r][skuCol - 1] = nextSku;
+      generatedSkus++;
+      changed = true;
+    }
+
+    if (changed) {
       if (lastUpdatedCol) {
-        sheet.getRange(r + 2, lastUpdatedCol).setValue(new Date());
+        values[r][lastUpdatedCol - 1] = now;
       }
       if (updatedByCol) {
-        sheet.getRange(r + 2, updatedByCol).setValue('SYSTEM');
+        values[r][updatedByCol - 1] = 'SYSTEM';
       }
-      generated++;
+      changedRows++;
     }
   }
-  return notifyUser_('Generate Product_ID: ' + generated + ' row(s) updated.');
+
+  if (generatedProductIds > 0) {
+    sheet.getRange(2, productIdCol, values.length, 1).setValues(values.map(function(row) {
+      return [row[productIdCol - 1]];
+    }));
+  }
+  if (includeSku && generatedSkus > 0) {
+    sheet.getRange(2, skuCol, values.length, 1).setValues(values.map(function(row) {
+      return [row[skuCol - 1]];
+    }));
+  }
+  if (changedRows > 0 && lastUpdatedCol) {
+    sheet.getRange(2, lastUpdatedCol, values.length, 1).setValues(values.map(function(row) {
+      return [row[lastUpdatedCol - 1]];
+    }));
+  }
+  if (changedRows > 0 && updatedByCol) {
+    sheet.getRange(2, updatedByCol, values.length, 1).setValues(values.map(function(row) {
+      return [row[updatedByCol - 1]];
+    }));
+  }
+
+  if (includeSku) {
+    return notifyUser_(
+      'Generate Product_ID + SKU: Product_ID=' +
+        generatedProductIds +
+        ', SKU=' +
+        generatedSkus +
+        ', row(s) updated=' +
+        changedRows +
+        '.'
+    );
+  }
+  return notifyUser_('Generate Product_ID: ' + generatedProductIds + ' row(s) updated.');
 }
 
 /**
@@ -324,9 +407,9 @@ function processAllPendingStockOut() {
 /**
  * Mutates stock upward from one STOCK_IN row. Caller must hold LockService.
  */
-function processStockInRowUnlocked_(sheet, rowNumber, defaultActor) {
+function processStockInRowUnlocked_(sheet, rowNumber, defaultActor, options) {
   var cfg = tvjConfig_();
-  var row = getRowObject_(sheet, rowNumber);
+  var row = options && options.rowObject ? options.rowObject : getRowObject_(sheet, rowNumber);
   var inId = ensureStockInIdUnlocked_(sheet, rowNumber, row);
   if (inventoryReferenceExists_(inId, 'STOCK_IN')) {
     return { skipped: true, message: 'STOCK_IN row ' + rowNumber + ' already processed: ' + inId };
@@ -340,7 +423,8 @@ function processStockInRowUnlocked_(sheet, rowNumber, defaultActor) {
     throw new Error('Qty_Masuk must be greater than zero.');
   }
 
-  var productRef = getProductLookupBySku_()[sku];
+  var productLookup = options && options.productLookup ? options.productLookup : getProductLookupBySku_();
+  var productRef = productLookup[sku];
   if (!productRef) {
     throw new Error('SKU not found in MASTER_PRODUCTS: ' + sku);
   }
@@ -349,13 +433,15 @@ function processStockInRowUnlocked_(sheet, rowNumber, defaultActor) {
   var newStock = oldStock + qty;
   var namaProduk = String(row.Nama_Produk || product.Nama_Produk || '').trim();
   var actor = String(row.Input_By || defaultActor || 'SYSTEM').trim();
-  updateProductStockFields_(productRef.sheet, productRef.rowNumber, newStock, {
+  var updates = {
     Nama_Produk: String(product.Nama_Produk || '').trim() === '' ? namaProduk : product.Nama_Produk,
     Status_Stok: calculateStockStatus_(newStock, product.Minimum_Stok),
     Status_Produk: normalizeText_(product.Status_Produk) === cfg.statuses.inactive ? cfg.statuses.inactive : cfg.statuses.active,
     Last_Updated: new Date(),
     Updated_By: actor
-  });
+  };
+  updateProductStockFields_(productRef.sheet, productRef.rowNumber, newStock, updates);
+  updateCachedProductObject_(productRef, updates);
 
   appendInventoryLog_({
     SKU: sku,
@@ -374,9 +460,9 @@ function processStockInRowUnlocked_(sheet, rowNumber, defaultActor) {
 /**
  * Mutates stock downward from one STOCK_OUT row. Caller must hold LockService.
  */
-function processStockOutRowUnlocked_(sheet, rowNumber, defaultActor) {
+function processStockOutRowUnlocked_(sheet, rowNumber, defaultActor, options) {
   var cfg = tvjConfig_();
-  var row = getRowObject_(sheet, rowNumber);
+  var row = options && options.rowObject ? options.rowObject : getRowObject_(sheet, rowNumber);
   var outId = ensureStockOutIdUnlocked_(sheet, rowNumber, row);
   var refId = String(row.Reference_ID || '').trim();
   if (inventoryReferenceExists_(outId, 'STOCK_OUT') || isStockOutOrderReferenceProcessed_(row, refId)) {
@@ -391,7 +477,8 @@ function processStockOutRowUnlocked_(sheet, rowNumber, defaultActor) {
     throw new Error('Qty_Keluar must be greater than zero.');
   }
 
-  var productRef = getProductLookupBySku_()[sku];
+  var productLookup = options && options.productLookup ? options.productLookup : getProductLookupBySku_();
+  var productRef = productLookup[sku];
   if (!productRef) {
     throw new Error('SKU not found in MASTER_PRODUCTS: ' + sku);
   }
@@ -404,12 +491,14 @@ function processStockOutRowUnlocked_(sheet, rowNumber, defaultActor) {
   var namaProduk = String(row.Nama_Produk || product.Nama_Produk || '').trim();
   var actor = String(row.Input_By || defaultActor || 'SYSTEM').trim();
   var logReference = outId;
-  updateProductStockFields_(productRef.sheet, productRef.rowNumber, newStock, {
+  var updates = {
     Status_Stok: calculateStockStatus_(newStock, product.Minimum_Stok),
     Status_Produk: normalizeText_(product.Status_Produk) === cfg.statuses.inactive ? cfg.statuses.inactive : cfg.statuses.active,
     Last_Updated: new Date(),
     Updated_By: actor
-  });
+  };
+  updateProductStockFields_(productRef.sheet, productRef.rowNumber, newStock, updates);
+  updateCachedProductObject_(productRef, updates);
 
   appendInventoryLog_({
     SKU: sku,
@@ -446,6 +535,17 @@ function updateProductStockFields_(sheet, rowNumber, newStock, extraFields) {
   var values = extraFields || {};
   values.Stok_Aktif = newStock;
   updateRowByHeaders_(sheet, rowNumber, values);
+}
+
+function updateCachedProductObject_(productRef, valuesByHeader) {
+  if (!productRef || !productRef.object) {
+    return;
+  }
+  for (var key in valuesByHeader) {
+    if (valuesByHeader.hasOwnProperty(key)) {
+      productRef.object[key] = valuesByHeader[key];
+    }
+  }
 }
 
 /**
