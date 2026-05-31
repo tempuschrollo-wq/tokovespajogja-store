@@ -83,6 +83,9 @@ button {
   border-radius: 26px;
   background: rgba(255, 249, 240, 0.96);
   box-shadow: 0 12px 30px rgba(71, 51, 27, 0.08);
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease;
 }
 
 .admin-toast {
@@ -1239,6 +1242,13 @@ button {
     gap: 10px;
     padding: 10px 12px;
     margin-bottom: 12px;
+  }
+
+  /* Auto-hide on downward scroll; JS toggles body.admin-header-hidden. */
+  body.admin-header-hidden .admin-header {
+    transform: translateY(calc(-100% - 12px));
+    opacity: 0;
+    pointer-events: none;
   }
 
   .admin-brand-mark {

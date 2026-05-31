@@ -3014,11 +3014,58 @@ const bindEvents = () => {
   })
 }
 
+// Auto-hides the sticky admin header on downward scroll (mobile-only effect:
+// the matching CSS hide rule lives in @media (max-width: 700px)). Header is
+// shown near the top and whenever the user scrolls up. Uses transform/opacity
+// + pointer-events via a body class, so there is no layout jump.
+const setupHeaderAutoHide = () => {
+  const header = document.querySelector(".admin-header")
+  if (!header) {
+    return
+  }
+
+  let lastScrollY = window.scrollY || 0
+  let ticking = false
+
+  const update = () => {
+    ticking = false
+    const currentY = window.scrollY || 0
+    const delta = currentY - lastScrollY
+
+    if (Math.abs(delta) < 6) {
+      lastScrollY = currentY
+      return
+    }
+
+    if (currentY < 24) {
+      document.body.classList.remove("admin-header-hidden")
+    } else if (delta > 0 && currentY > 80) {
+      document.body.classList.add("admin-header-hidden")
+    } else if (delta < 0) {
+      document.body.classList.remove("admin-header-hidden")
+    }
+
+    lastScrollY = currentY
+  }
+
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (!ticking) {
+        ticking = true
+        window.requestAnimationFrame(update)
+      }
+    },
+    { passive: true }
+  )
+}
+
 const init = async () => {
   populateCategoryOptions()
   clearEditor()
   initReveal()
   bindEvents()
+  setupHeaderAutoHide()
   refreshConnectorState()
 
   try {
