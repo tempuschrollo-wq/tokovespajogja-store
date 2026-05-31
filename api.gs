@@ -29,6 +29,9 @@ function routeApiRequest_(method, endpoint, payload) {
     if (endpoint === '/reports/history') {
       return apiReportsHistory_(payload);
     }
+    if (endpoint === '/reports/current') {
+      return apiReportsCurrent_();
+    }
     if (endpoint === '/health' || endpoint === '/ping') {
       return apiHealth_();
     }

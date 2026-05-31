@@ -302,6 +302,78 @@ function apiReportsHistory_(payload) {
 }
 
 /**
+ * Read-only snapshot of the current DASHBOARD, WEEKLY_REPORT, and MONTHLY_REPORT
+ * sheets for the website. Reads existing sheets only; it does NOT refresh,
+ * recalculate, or mutate any data.
+ */
+function apiReportsCurrent_() {
+  var cfg = tvjConfig_();
+  var dashboard = readMetricValueSheet_(cfg.sheets.dashboard);
+  var weekly = readMetricValueSheet_(cfg.sheets.weeklyReport);
+  var monthly = readMetricValueSheet_(cfg.sheets.monthlyReport);
+
+  dashboard.omzetHariIni = safeToNumber_(dashboard['Omzet Hari Ini']);
+  dashboard.profitHariIni = safeToNumber_(dashboard['Profit Hari Ini']);
+
+  weekly.revenue = safeToNumber_(weekly.Revenue);
+  weekly.estimatedGrossProfit = safeToNumber_(weekly.Estimated_Gross_Profit);
+  weekly.unitsSold = safeToNumber_(weekly.Units_Sold);
+
+  monthly.revenue = safeToNumber_(monthly.Revenue);
+  monthly.estimatedGrossProfit = safeToNumber_(monthly.Estimated_Gross_Profit);
+  monthly.unitsSold = safeToNumber_(monthly.Units_Sold);
+
+  return apiSuccess_('REPORTS_CURRENT_OK', {
+    dashboard: dashboard,
+    weekly: weekly,
+    monthly: monthly
+  });
+}
+
+/**
+ * Reads a Metric/Value sheet (DASHBOARD/WEEKLY_REPORT/MONTHLY_REPORT) into a
+ * plain object keyed by metric name. Stops at the first blank metric so the
+ * DASHBOARD "Recent Activity" table is not included.
+ */
+function readMetricValueSheet_(sheetName) {
+  var sheet = getSheet_(sheetName, false);
+  var result = {};
+  if (!sheet || sheet.getLastRow() < 2) {
+    return result;
+  }
+  var values = sheet.getRange(1, 1, sheet.getLastRow(), 2).getValues();
+  for (var i = 1; i < values.length; i++) {
+    var metric = String(values[i][0] || '').trim();
+    if (metric === '' || metric === 'Recent Activity') {
+      break;
+    }
+    result[metric] = coerceReportCellValue_(values[i][1]);
+  }
+  return result;
+}
+
+/**
+ * Converts a report cell value: dates to ISO-like strings, numeric values to
+ * numbers, everything else to trimmed strings.
+ */
+function coerceReportCellValue_(value) {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return formatDate_(value, "yyyy-MM-dd'T'HH:mm:ss");
+  }
+  if (typeof value === 'number') {
+    return value;
+  }
+  var text = String(value).trim();
+  if (text !== '' && !isNaN(Number(text))) {
+    return Number(text);
+  }
+  return text;
+}
+
+/**
  * Calculates units, revenue, COGS, and gross profit for one order row.
  * Revenue reporting uses STOCK_OUT rows; this is kept for existing callers.
  */

@@ -9,10 +9,13 @@ import {
 import {
   fetchAdminMarketplaceHistory,
   fetchAdminOrdersList,
+  fetchCurrentReports,
   fetchLiveCatalog,
+  fetchReportHistory,
   hasAdminApiToken,
   readCachedAdminOrders,
-  readCachedLiveCatalog
+  readCachedLiveCatalog,
+  refreshBackendReporting
 } from "./live-api-client.js"
 
 const reportLock = document.querySelector("#report-lock")
@@ -56,10 +59,14 @@ const monthlyTopProducts = document.querySelector("#monthly-top-products")
 const monthlyTopCategories = document.querySelector("#monthly-top-categories")
 const salesRankingNote = document.querySelector("#sales-ranking-note")
 const salesRankingBody = document.querySelector("#sales-ranking-body")
+const monthlyArchiveNote = document.querySelector("#monthly-archive-note")
+const monthlyArchiveBody = document.querySelector("#monthly-archive-body")
 
 const state = {
   products: [],
   orders: [],
+  currentReports: null,
+  reportHistory: null,
   loadedAt: null,
   error: "",
   lowStockSearch: "",
@@ -136,6 +143,24 @@ const getOrderValue = (order, keys, fallback = "") => {
 const toNumber = (value) => {
   const numberValue = Number(value || 0)
   return Number.isFinite(numberValue) ? numberValue : 0
+}
+
+const pickReportNumber = (source, keys) => {
+  if (!source) {
+    return 0
+  }
+
+  for (const key of keys) {
+    const value = source[key]
+    if (value !== undefined && value !== null && value !== "") {
+      const numberValue = Number(value)
+      if (Number.isFinite(numberValue)) {
+        return numberValue
+      }
+    }
+  }
+
+  return 0
 }
 
 const parseOrderItems = (order) => {
@@ -695,6 +720,46 @@ const renderSalesRanking = (orders, products) => {
     .join("")
 }
 
+const renderMonthlyArchive = () => {
+  if (!monthlyArchiveBody) {
+    return
+  }
+
+  const monthlyHistory = Array.isArray(state.reportHistory?.monthly)
+    ? state.reportHistory.monthly
+    : []
+
+  if (monthlyArchiveNote) {
+    monthlyArchiveNote.textContent = monthlyHistory.length
+      ? `${formatItemCount(monthlyHistory.length)} arsip bulan tersimpan.`
+      : "Belum ada arsip bulan tersimpan."
+  }
+
+  if (!monthlyHistory.length) {
+    monthlyArchiveBody.innerHTML = `
+      <tr>
+        <td colspan="5"><span class="table-muted">Belum ada arsip laporan bulanan.</span></td>
+      </tr>
+    `
+    return
+  }
+
+  monthlyArchiveBody.innerHTML = monthlyHistory
+    .slice(0, 12)
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(String(row.period_key || row.period || "-"))}</td>
+          <td>${formatRupiah(toNumber(row.revenue))}</td>
+          <td>${formatItemCount(toNumber(row.units_sold))}</td>
+          <td>${formatRupiah(toNumber(row.estimated_gross_profit))}</td>
+          <td>${formatItemCount(toNumber(row.stock_out_qty))}</td>
+        </tr>
+      `
+    )
+    .join("")
+}
+
 const renderReports = () => {
   const now = new Date()
   const todayStart = startOfDay(now)
@@ -724,12 +789,23 @@ const renderReports = () => {
     end: monthEnd
   })
 
-  kpiTodayRevenue.textContent = formatRupiah(todayReport.revenue)
-  kpiTodayOrders.textContent = `${formatItemCount(todayReport.ordersCount)} order · ${formatItemCount(todayReport.unitsSold)} item · profit ${formatRupiah(todayReport.profit)}`
-  kpiWeekRevenue.textContent = formatRupiah(weekReport.revenue)
-  kpiWeekProfit.textContent = `Profit estimasi ${formatRupiah(weekReport.profit)}`
-  kpiMonthRevenue.textContent = formatRupiah(monthReport.revenue)
-  kpiMonthProfit.textContent = `Profit estimasi ${formatRupiah(monthReport.profit)}`
+  const dashboardReport = state.currentReports?.dashboard || {}
+  const weeklyBackend = state.currentReports?.weekly || {}
+  const monthlyBackend = state.currentReports?.monthly || {}
+
+  const todayRevenue = pickReportNumber(dashboardReport, ["omzetHariIni", "Omzet Hari Ini"])
+  const todayProfit = pickReportNumber(dashboardReport, ["profitHariIni", "Profit Hari Ini"])
+  const weekRevenue = pickReportNumber(weeklyBackend, ["revenue", "Revenue"])
+  const weekProfit = pickReportNumber(weeklyBackend, ["estimatedGrossProfit", "Estimated_Gross_Profit"])
+  const monthRevenue = pickReportNumber(monthlyBackend, ["revenue", "Revenue"])
+  const monthProfit = pickReportNumber(monthlyBackend, ["estimatedGrossProfit", "Estimated_Gross_Profit"])
+
+  kpiTodayRevenue.textContent = formatRupiah(todayRevenue)
+  kpiTodayOrders.textContent = `${formatItemCount(todayReport.ordersCount)} order · ${formatItemCount(todayReport.unitsSold)} item · profit ${formatRupiah(todayProfit)}`
+  kpiWeekRevenue.textContent = formatRupiah(weekRevenue)
+  kpiWeekProfit.textContent = `Profit estimasi ${formatRupiah(weekProfit)}`
+  kpiMonthRevenue.textContent = formatRupiah(monthRevenue)
+  kpiMonthProfit.textContent = `Profit estimasi ${formatRupiah(monthProfit)}`
 
   weeklyPeriod.textContent = formatDateRange(weekStart, weekEnd)
   monthlyPeriod.textContent = new Intl.DateTimeFormat("id-ID", {
@@ -757,6 +833,7 @@ const renderReports = () => {
   renderLowStockList(products)
   renderDailyChart(orders, now)
   renderSalesRanking(orders, products)
+  renderMonthlyArchive()
   reportSyncLabel.textContent = state.loadedAt
     ? `Update ${new Intl.DateTimeFormat("id-ID", {
         hour: "2-digit",
@@ -825,6 +902,16 @@ const loadReports = async ({ force = false } = {}) => {
   reportSyncLabel.textContent = force ? "Refresh data..." : "Memuat laporan..."
   setStatus("Memuat laporan toko.")
 
+  if (force && hasAdminApiToken()) {
+    reportSyncLabel.textContent = "Refresh laporan backend..."
+    try {
+      await refreshBackendReporting()
+    } catch (error) {
+      // Best-effort: backend mungkin lambat/timeout, tetap lanjut baca sheet terakhir.
+      console.error(error)
+    }
+  }
+
   try {
     const catalogPayload = await fetchLiveCatalog({ force })
     state.products = catalogPayload.products || []
@@ -832,6 +919,21 @@ const loadReports = async ({ force = false } = {}) => {
     console.error(error)
     state.error = error.message || "Katalog live gagal dimuat."
     reportTokenNote.textContent = state.error
+  }
+
+  try {
+    state.currentReports = await fetchCurrentReports({ force })
+  } catch (error) {
+    console.error(error)
+    state.error = error.message || "Laporan terkini gagal dimuat."
+    reportTokenNote.textContent = state.error
+  }
+
+  try {
+    state.reportHistory = await fetchReportHistory({ force })
+  } catch (error) {
+    // Arsip bulanan opsional; kegagalan tidak memblokir kartu KPI.
+    console.error(error)
   }
 
   try {

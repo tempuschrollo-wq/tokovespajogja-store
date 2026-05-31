@@ -59,7 +59,9 @@ const PUBLIC_ROOT_FILES = new Set([
 const API_CACHE_TTL = {
   catalog: 10 * 60_000,
   dashboard: 2 * 60_000,
-  adminOrders: 30_000
+  adminOrders: 30_000,
+  reportsCurrent: 30_000,
+  reportsHistory: 60_000
 }
 
 const CACHE_DIR = path.join(__dirname, ".cache")
@@ -161,6 +163,41 @@ async function handleApiRequest(request, response, requestUrl) {
     const payload = forceFresh
       ? await refreshCache_("dashboard-summary", factory)
       : await getCachedPayload_("dashboard-summary", API_CACHE_TTL.dashboard, factory)
+    writeJson(response, 200, payload)
+    return
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/reports/current") {
+    const forceFresh = requestUrl.searchParams.get("fresh") === "1"
+    const upstreamParams = new URLSearchParams(requestUrl.searchParams)
+    upstreamParams.delete("fresh")
+    const factory = () => fetchAppsScriptJson_("reports/current", null, upstreamParams)
+    const payload = forceFresh
+      ? await refreshCache_("reports-current", factory)
+      : await getCachedPayload_("reports-current", API_CACHE_TTL.reportsCurrent, factory)
+    writeJson(response, 200, payload)
+    return
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/reports/history") {
+    const forceFresh = requestUrl.searchParams.get("fresh") === "1"
+    const upstreamParams = new URLSearchParams(requestUrl.searchParams)
+    upstreamParams.delete("fresh")
+    const factory = () => fetchAppsScriptJson_("reports/history", null, upstreamParams)
+    const payload = forceFresh
+      ? await refreshCache_("reports-history", factory)
+      : await getCachedPayload_("reports-history", API_CACHE_TTL.reportsHistory, factory)
+    writeJson(response, 200, payload)
+    return
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/admin/system/refresh-reporting") {
+    const body = await readJsonBody_(request)
+    const payload = await fetchAppsScriptJson_("admin/system/refresh-reporting", body)
+    if (payload?.success) {
+      apiCache.delete("reports-current")
+      apiCache.delete("reports-history")
+    }
     writeJson(response, 200, payload)
     return
   }

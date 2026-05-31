@@ -23,7 +23,9 @@ const READ_CACHE_TTL_MS = {
   catalog: 60_000,
   dashboard: 30_000,
   orders: 15_000,
-  marketplace: 15_000
+  marketplace: 15_000,
+  reportsCurrent: 30_000,
+  reportsHistory: 60_000
 }
 
 const memoryReadCache = new Map()
@@ -94,6 +96,54 @@ export const fetchLiveDashboardSummary = async ({ force = false } = {}) => {
       return summary
     }
   })
+}
+
+export const fetchCurrentReports = async ({ force = false } = {}) => {
+  return readWithMemoryCache_({
+    key: "reports-current",
+    force,
+    ttlMs: READ_CACHE_TTL_MS.reportsCurrent,
+    load: async () => {
+      const payload = await fetchJson(
+        `${API_BASE}/reports/current${force ? "?fresh=1" : ""}`
+      )
+
+      if (!payload.success) {
+        throw createApiError_(payload, "Laporan terkini gagal dimuat.")
+      }
+
+      return payload.data || {}
+    }
+  })
+}
+
+export const fetchReportHistory = async ({ force = false, limit = 12 } = {}) => {
+  return readWithMemoryCache_({
+    key: `reports-history:${Number(limit || 12)}`,
+    force,
+    ttlMs: READ_CACHE_TTL_MS.reportsHistory,
+    load: async () => {
+      const query = new URLSearchParams()
+      query.set("limit", String(Number(limit || 12)))
+      if (force) {
+        query.set("fresh", "1")
+      }
+      const payload = await fetchJson(`${API_BASE}/reports/history?${query.toString()}`)
+
+      if (!payload.success) {
+        throw createApiError_(payload, "Riwayat laporan gagal dimuat.")
+      }
+
+      return payload.data || { weekly: [], monthly: [] }
+    }
+  })
+}
+
+export const refreshBackendReporting = async () => {
+  const result = await postAdminJson("/admin/system/refresh-reporting", {})
+  clearReadCache_("reports-current")
+  clearReadCache_("reports-history")
+  return result
 }
 
 export const createWebsiteOrder = async ({
