@@ -101,7 +101,7 @@
             <form class="access-form" id="setup-form">
               <label class="access-field" for="setup-username">
                 <span>Username admin</span>
-                <input id="setup-username" type="text" autocomplete="username" required />
+                <input id="setup-username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required />
               </label>
 
               <label class="access-field" for="setup-password">
@@ -128,7 +128,7 @@
             <form class="access-form" id="login-form">
               <label class="access-field" for="login-username">
                 <span>Username admin</span>
-                <input id="login-username" type="text" autocomplete="username" required />
+                <input id="login-username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required />
               </label>
 
               <label class="access-field" for="login-password">
@@ -641,12 +641,17 @@
             <form class="security-form" id="credentials-form">
               <label class="access-field">
                 <span>Username baru</span>
-                <input id="credentials-username" type="text" required />
+                <input id="credentials-username" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" required />
+              </label>
+
+              <label class="access-field">
+                <span>Password admin saat ini</span>
+                <input id="credentials-current" type="password" autocomplete="current-password" required />
               </label>
 
               <label class="access-field">
                 <span>Password baru</span>
-                <input id="credentials-password" type="password" required />
+                <input id="credentials-password" type="password" autocomplete="new-password" required />
               </label>
 
               <label class="access-field">

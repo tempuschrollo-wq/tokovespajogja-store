@@ -9,22 +9,24 @@ import {
   formatRupiahInput,
   getCategoryLabel,
   hasValidAdminSession,
-  hashText,
   isRupiahLikeValue,
   makeProductLookup,
   normalizeText,
   parseRupiahNumber,
-  readAdminCredentials,
-  saveAdminCredentials,
+  readAdminSession,
   setAdminSession,
   categoryLabels
 } from "./catalog-store.js"
 import {
+  adminChangeLogin,
+  adminLogin,
+  adminSetup,
   cancelAdminOrder,
   clearAdminApiSession,
   clearAdminApiToken,
   createAdminMarketplaceOrder,
   createAdminProduct,
+  fetchAdminAuthStatus,
   deleteAdminOrder,
   deleteAdminProduct,
   deactivateAdminProduct,
@@ -153,6 +155,7 @@ const productImagePreview = document.querySelector("#product-image-preview")
 const currentAdminUser = document.querySelector("#current-admin-user")
 const credentialsForm = document.querySelector("#credentials-form")
 const credentialsUsernameInput = document.querySelector("#credentials-username")
+const credentialsCurrentInput = document.querySelector("#credentials-current")
 const credentialsPasswordInput = document.querySelector("#credentials-password")
 const credentialsConfirmInput = document.querySelector("#credentials-confirm")
 
@@ -1880,9 +1883,9 @@ const renderDashboard = () => {
   renderManagerTable()
   renderMarketplaceSection()
   renderOrderNotifications()
-  const credentials = readAdminCredentials()
-  currentAdminUser.textContent = credentials?.username || "-"
-  credentialsUsernameInput.value = credentials?.username || ""
+  const session = readAdminSession()
+  currentAdminUser.textContent = session?.username || "-"
+  credentialsUsernameInput.value = session?.username || ""
 }
 
 const loadCatalogState = async ({ force = false } = {}) => {
@@ -2312,9 +2315,19 @@ const showDashboard = async () => {
 }
 
 const refreshAuthView = async () => {
-  const credentials = readAdminCredentials()
+  // Backend decides whether admin is configured. Never infer "setup needed"
+  // from localStorage. On any status error, fail closed to the login form.
+  let configured = true
 
-  if (!credentials) {
+  try {
+    const status = await fetchAdminAuthStatus()
+    configured = status?.configured !== false
+  } catch (error) {
+    console.error(error)
+    configured = true
+  }
+
+  if (!configured) {
     showSetup()
     return
   }
@@ -2345,13 +2358,26 @@ const bindEvents = () => {
       return
     }
 
+    const submitButton = setupForm.querySelector('button[type="submit"]')
+    setButtonPending(submitButton, true)
+
     try {
-      const passwordHash = await hashText(password)
-      saveAdminCredentials({ username, passwordHash })
-      setAdminSession(username)
+      const payload = await adminSetup({ username, password })
+
+      if (!payload.success) {
+        const message =
+          payload.error?.code === "ADMIN_ALREADY_CONFIGURED"
+            ? "Admin sudah dikonfigurasi di server. Silakan login."
+            : payload.message || "Setup login admin ditolak server."
+        setStatus(message, { toast: true, tone: "error" })
+        await refreshAuthView()
+        return
+      }
+
+      setAdminSession(payload.data?.username || username)
       setupForm.reset()
       await refreshAuthView()
-      setStatus("Login admin lokal berhasil dibuat dan dashboard live siap dipakai.", {
+      setStatus("Login admin berhasil dibuat dan dashboard live siap dipakai.", {
         toast: true
       })
     } catch (error) {
@@ -2360,6 +2386,8 @@ const bindEvents = () => {
         toast: true,
         tone: "error"
       })
+    } finally {
+      setButtonPending(submitButton, false)
     }
   })
 
@@ -2368,24 +2396,22 @@ const bindEvents = () => {
 
     const username = loginUsernameInput.value.trim()
     const password = loginPasswordInput.value
-    const credentials = readAdminCredentials()
-
-    if (!credentials) {
-      await refreshAuthView()
-      return
-    }
+    const submitButton = loginForm.querySelector('button[type="submit"]')
+    setButtonPending(submitButton, true)
 
     try {
-      const passwordHash = await hashText(password)
-      const isValid =
-        username === credentials.username && passwordHash === credentials.passwordHash
+      const payload = await adminLogin({ username, password })
 
-      if (!isValid) {
-        setStatus("Username atau password admin belum cocok.")
+      if (!payload.success) {
+        const message =
+          payload.error?.code === "ADMIN_NOT_CONFIGURED"
+            ? "Admin belum dikonfigurasi di server. Hubungi pengelola server."
+            : payload.message || "Username atau password admin salah."
+        setStatus(message, { toast: true, tone: "error" })
         return
       }
 
-      setAdminSession(username)
+      setAdminSession(payload.data?.username || username)
       loginForm.reset()
       await refreshAuthView()
       setStatus("Berhasil masuk ke dashboard admin live.", {
@@ -2393,10 +2419,12 @@ const bindEvents = () => {
       })
     } catch (error) {
       console.error(error)
-      setStatus("Login admin gagal diproses.", {
+      setStatus("Login admin gagal diproses. Coba lagi.", {
         toast: true,
         tone: "error"
       })
+    } finally {
+      setButtonPending(submitButton, false)
     }
   })
 
@@ -2981,27 +3009,54 @@ const bindEvents = () => {
     event.preventDefault()
 
     const username = credentialsUsernameInput.value.trim()
+    const currentPassword = credentialsCurrentInput.value
     const password = credentialsPasswordInput.value
     const confirmPassword = credentialsConfirmInput.value
 
     if (!username) {
-      setStatus("Username baru wajib diisi.")
+      setStatus("Username baru wajib diisi.", { toast: true, tone: "error" })
+      return
+    }
+
+    if (!currentPassword) {
+      setStatus("Password admin saat ini wajib diisi.", { toast: true, tone: "error" })
       return
     }
 
     if (password !== confirmPassword) {
-      setStatus("Password baru dan ulangi password harus sama.")
+      setStatus("Password baru dan ulangi password harus sama.", {
+        toast: true,
+        tone: "error"
+      })
       return
     }
 
+    const submitButton = credentialsForm.querySelector('button[type="submit"]')
+    setButtonPending(submitButton, true)
+
     try {
-      const passwordHash = await hashText(password)
-      saveAdminCredentials({ username, passwordHash })
-      setAdminSession(username)
+      const payload = await adminChangeLogin({
+        currentUsername: readAdminSession()?.username || username,
+        currentPassword,
+        newUsername: username,
+        newPassword: password
+      })
+
+      if (!payload.success) {
+        const message =
+          payload.error?.code === "ADMIN_LOGIN_INVALID"
+            ? "Password admin saat ini salah."
+            : payload.message || "Login admin gagal diperbarui."
+        setStatus(message, { toast: true, tone: "error" })
+        return
+      }
+
+      setAdminSession(payload.data?.username || username)
+      currentAdminUser.textContent = payload.data?.username || username
+      credentialsCurrentInput.value = ""
       credentialsPasswordInput.value = ""
       credentialsConfirmInput.value = ""
-      await refreshAuthView()
-      setStatus("Login admin lokal berhasil diperbarui.", {
+      setStatus("Login admin berhasil diperbarui.", {
         toast: true
       })
     } catch (error) {
@@ -3010,6 +3065,8 @@ const bindEvents = () => {
         toast: true,
         tone: "error"
       })
+    } finally {
+      setButtonPending(submitButton, false)
     }
   })
 }

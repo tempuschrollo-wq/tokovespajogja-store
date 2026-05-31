@@ -633,7 +633,10 @@ export const clearAdminSession = () => {
 }
 
 export const hasValidAdminSession = () => {
-  const credentials = readAdminCredentials()
+  // Admin identity is decided by the backend at login time; the in-tab session
+  // (sessionStorage) is only written after a backend-validated login. It must
+  // NOT depend on localStorage credentials so a fresh/incognito tab still gates
+  // correctly via the backend status check instead of falling into setup mode.
   const session = readAdminSession()
-  return Boolean(credentials && session && session.username === credentials.username)
+  return Boolean(session && session.username)
 }

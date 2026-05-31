@@ -1,5 +1,5 @@
 import http from "node:http"
-import { createHash } from "node:crypto"
+import { createHash, timingSafeEqual } from "node:crypto"
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -18,6 +18,18 @@ const APPS_SCRIPT_TIMEOUT_MS = resolveTimeoutMs_(
   35_000
 )
 const PUBLIC_ORIGIN = process.env.TVJ_PUBLIC_ORIGIN || localConfig.publicOrigin || ""
+const CONFIG_PATH = path.join(__dirname, "server.config.json")
+
+// Backend-owned admin login credentials. Env overrides the config file. The
+// admin API token (write access to Apps Script) stays a separate browser flow.
+const ADMIN_AUTH = {
+  username: String(process.env.TVJ_ADMIN_USERNAME || localConfig.adminUsername || "").trim(),
+  passwordHash: String(
+    process.env.TVJ_ADMIN_PASSWORD_HASH || localConfig.adminPasswordHash || ""
+  )
+    .trim()
+    .toLowerCase()
+}
 
 if (!APPS_SCRIPT_BASE_URL) {
   throw new Error(
@@ -141,6 +153,143 @@ async function handleApiRequest(request, response, requestUrl) {
         apps_script_url: APPS_SCRIPT_BASE_URL,
         apps_script_timeout_ms: APPS_SCRIPT_TIMEOUT_MS
       },
+      error: null
+    })
+    return
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/admin/auth/status") {
+    writeJson(response, 200, {
+      success: true,
+      configured: isAdminConfigured_()
+    })
+    return
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/admin/auth/login") {
+    const body = await readJsonBody_(request)
+    if (!isAdminConfigured_()) {
+      writeJson(response, 200, {
+        success: false,
+        message: "Admin belum dikonfigurasi di server.",
+        data: null,
+        error: { code: "ADMIN_NOT_CONFIGURED" }
+      })
+      return
+    }
+    if (!verifyAdminCredentials_(body.username, body.password)) {
+      writeJson(response, 200, {
+        success: false,
+        message: "Username atau password admin salah.",
+        data: null,
+        error: { code: "ADMIN_LOGIN_INVALID" }
+      })
+      return
+    }
+    writeJson(response, 200, {
+      success: true,
+      message: "ADMIN_LOGIN_OK",
+      data: { username: ADMIN_AUTH.username },
+      error: null
+    })
+    return
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/admin/auth/setup") {
+    const body = await readJsonBody_(request)
+    if (isAdminConfigured_()) {
+      writeJson(response, 200, {
+        success: false,
+        message: "ADMIN_ALREADY_CONFIGURED",
+        data: null,
+        error: { code: "ADMIN_ALREADY_CONFIGURED" }
+      })
+      return
+    }
+    const username = String(body.username || "").trim()
+    const password = String(body.password || "")
+    if (username === "" || password === "") {
+      writeJson(response, 200, {
+        success: false,
+        message: "Username dan password wajib diisi.",
+        data: null,
+        error: { code: "ADMIN_SETUP_INVALID" }
+      })
+      return
+    }
+    const passwordHash = sha256Hex_(password)
+    try {
+      await persistAdminAuthToConfig_(username, passwordHash)
+    } catch (error) {
+      writeJson(response, 200, {
+        success: false,
+        message: "Gagal menyimpan kredensial admin di server.",
+        data: null,
+        error: { code: "ADMIN_SETUP_PERSIST_FAILED", details: error.message }
+      })
+      return
+    }
+    ADMIN_AUTH.username = username
+    ADMIN_AUTH.passwordHash = passwordHash
+    writeJson(response, 200, {
+      success: true,
+      message: "ADMIN_CONFIGURED",
+      data: { username },
+      error: null
+    })
+    return
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/admin/auth/change-password") {
+    const body = await readJsonBody_(request)
+    if (!isAdminConfigured_()) {
+      writeJson(response, 200, {
+        success: false,
+        message: "Admin belum dikonfigurasi di server.",
+        data: null,
+        error: { code: "ADMIN_NOT_CONFIGURED" }
+      })
+      return
+    }
+    const currentUsername = String(body.current_username || ADMIN_AUTH.username || "")
+    if (!verifyAdminCredentials_(currentUsername, body.current_password)) {
+      writeJson(response, 200, {
+        success: false,
+        message: "Password admin saat ini salah.",
+        data: null,
+        error: { code: "ADMIN_LOGIN_INVALID" }
+      })
+      return
+    }
+    const newUsername = String(body.new_username || "").trim() || ADMIN_AUTH.username
+    const newPassword = String(body.new_password || "")
+    if (newPassword === "") {
+      writeJson(response, 200, {
+        success: false,
+        message: "Password baru wajib diisi.",
+        data: null,
+        error: { code: "ADMIN_CHANGE_INVALID" }
+      })
+      return
+    }
+    const newHash = sha256Hex_(newPassword)
+    try {
+      await persistAdminAuthToConfig_(newUsername, newHash)
+    } catch (error) {
+      writeJson(response, 200, {
+        success: false,
+        message: "Gagal memperbarui kredensial admin di server.",
+        data: null,
+        error: { code: "ADMIN_CHANGE_PERSIST_FAILED", details: error.message }
+      })
+      return
+    }
+    ADMIN_AUTH.username = newUsername
+    ADMIN_AUTH.passwordHash = newHash
+    writeJson(response, 200, {
+      success: true,
+      message: "ADMIN_LOGIN_UPDATED",
+      data: { username: newUsername },
       error: null
     })
     return
@@ -831,4 +980,40 @@ async function loadLocalConfig_() {
   } catch (error) {
     return {}
   }
+}
+
+function sha256Hex_(value) {
+  return createHash("sha256").update(String(value), "utf8").digest("hex")
+}
+
+function isAdminConfigured_() {
+  return Boolean(ADMIN_AUTH.username && ADMIN_AUTH.passwordHash)
+}
+
+function safeEqualHex_(a, b) {
+  const bufA = Buffer.from(String(a || ""), "utf8")
+  const bufB = Buffer.from(String(b || ""), "utf8")
+  if (bufA.length !== bufB.length || bufA.length === 0) {
+    return false
+  }
+  return timingSafeEqual(bufA, bufB)
+}
+
+function verifyAdminCredentials_(username, password) {
+  const usernameOk =
+    String(username || "").trim().toLowerCase() === ADMIN_AUTH.username.toLowerCase()
+  const passwordOk = safeEqualHex_(sha256Hex_(password), ADMIN_AUTH.passwordHash)
+  return usernameOk && passwordOk
+}
+
+async function persistAdminAuthToConfig_(username, passwordHash) {
+  let current = {}
+  try {
+    current = JSON.parse(await readFile(CONFIG_PATH, "utf8"))
+  } catch (error) {
+    current = {}
+  }
+  current.adminUsername = username
+  current.adminPasswordHash = passwordHash
+  await writeFile(CONFIG_PATH, `${JSON.stringify(current, null, 2)}\n`, "utf8")
 }

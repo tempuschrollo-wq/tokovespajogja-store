@@ -3,5 +3,7 @@
   "port": 4173,
   "publicOrigin": "https://tokovespajogja.store",
   "appsScriptBaseUrl": "https://script.google.com/macros/s/AKfycbxV8rZB9MZaYU-cKYdXfFbJg7ACvf2OgZUUom5cNSGigTb3_SpMbNyBk7aiuX8M3MPu/exec",
-  "appsScriptTimeoutMs": 35000
+  "appsScriptTimeoutMs": 35000,
+  "adminUsername": "admin",
+  "adminPasswordHash": "REPLACE_WITH_SHA256_HEX_OF_PASSWORD"
 }

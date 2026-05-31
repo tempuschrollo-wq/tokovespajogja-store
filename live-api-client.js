@@ -98,6 +98,41 @@ export const fetchLiveDashboardSummary = async ({ force = false } = {}) => {
   })
 }
 
+export const fetchAdminAuthStatus = async () => {
+  return fetchJson(`${API_BASE}/admin/auth/status`)
+}
+
+export const adminLogin = async ({ username, password }) => {
+  return fetchJson(`${API_BASE}/admin/auth/login`, {
+    method: "POST",
+    body: JSON.stringify({ username, password })
+  })
+}
+
+export const adminSetup = async ({ username, password }) => {
+  return fetchJson(`${API_BASE}/admin/auth/setup`, {
+    method: "POST",
+    body: JSON.stringify({ username, password })
+  })
+}
+
+export const adminChangeLogin = async ({
+  currentUsername,
+  currentPassword,
+  newUsername,
+  newPassword
+}) => {
+  return fetchJson(`${API_BASE}/admin/auth/change-password`, {
+    method: "POST",
+    body: JSON.stringify({
+      current_username: currentUsername,
+      current_password: currentPassword,
+      new_username: newUsername,
+      new_password: newPassword
+    })
+  })
+}
+
 export const fetchCurrentReports = async ({ force = false } = {}) => {
   return readWithMemoryCache_({
     key: "reports-current",
