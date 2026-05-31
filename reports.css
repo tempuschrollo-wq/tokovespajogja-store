@@ -354,6 +354,18 @@
   width: 76px;
 }
 
+/* Compact archive table fits the narrower right-side card; scrolls within the
+   card if the viewport is very tight instead of overflowing the page. */
+.report-archive-table {
+  min-width: 0;
+}
+
+.report-archive-table td:first-child,
+.report-archive-table th:first-child {
+  width: auto;
+  white-space: nowrap;
+}
+
 .report-modal {
   position: fixed;
   inset: 0;
