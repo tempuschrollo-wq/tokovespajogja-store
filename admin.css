@@ -1228,6 +1228,45 @@ button {
   }
 }
 
+@media (max-width: 700px) {
+  /* Mobile compact: shrink the sticky header/top area and card padding so admin
+     forms appear sooner. Desktop (min-width: 700px+) is unaffected. */
+  .admin-shell {
+    padding-top: 8px;
+  }
+
+  .admin-header {
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+
+  .admin-brand-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .admin-header-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .admin-header-link {
+    min-height: 38px;
+    padding: 0 12px;
+  }
+
+  .admin-main {
+    gap: 12px;
+  }
+
+  .access-card,
+  .dashboard-card {
+    gap: 14px;
+    padding: 16px 14px;
+  }
+}
+
 @media (max-width: 520px) {
   .admin-header {
     padding: 12px;

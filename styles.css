@@ -1926,6 +1926,43 @@ button {
   }
 }
 
+@media (max-width: 700px) {
+  /* Mobile compact: surface the search/catalog content sooner by trimming hero
+     vertical space. Desktop (min-width: 700px+) is unaffected. */
+  .site-header {
+    margin-bottom: 12px;
+  }
+
+  .hero {
+    gap: 12px;
+    margin-top: 8px;
+    padding: 14px 16px;
+  }
+
+  .hero-search-panel {
+    gap: 8px;
+  }
+
+  .hero-search-panel h1 {
+    font-size: clamp(1.5rem, 6.2vw, 2rem);
+  }
+
+  .hero-lead {
+    margin-top: 6px;
+  }
+
+  .hero-pill-row {
+    margin-bottom: 8px;
+  }
+
+  .hero::after {
+    width: 150px;
+    height: 150px;
+    right: -50px;
+    bottom: -60px;
+  }
+}
+
 @media (max-width: 420px) {
   .site-header {
     gap: 8px;
