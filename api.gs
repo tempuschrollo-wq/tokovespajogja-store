@@ -68,6 +68,9 @@ function routeApiRequest_(method, endpoint, payload) {
     if (endpoint === '/admin/stock/out') {
       return apiAdminStockOut_(payload);
     }
+    if (endpoint === '/admin/products/create' || endpoint === '/admin/product/create') {
+      return apiAdminProductsCreate_(payload);
+    }
     if (endpoint === '/admin/products/update') {
       return apiAdminProductsUpdate_(payload);
     }

@@ -219,15 +219,10 @@ async function handleApiRequest(request, response, requestUrl) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/admin/product/create") {
-    writeJson(response, 200, {
-      success: false,
-      message: "Admin product create belum diimplementasikan di Apps Script.",
-      data: null,
-      error: {
-        code: "NOT_IMPLEMENTED",
-        details: "admin/product/create"
-      }
-    })
+    const body = await readJsonBody_(request)
+    const payload = await fetchAppsScriptJson_("admin/products/create", body)
+    invalidateInventoryCacheOnSuccess_(payload)
+    writeJson(response, 200, payload)
     return
   }
 

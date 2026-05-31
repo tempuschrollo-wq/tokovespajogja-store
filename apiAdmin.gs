@@ -182,6 +182,106 @@ function apiAdminProductsUpdate_(payload) {
 }
 
 /**
+ * Creates a new MASTER_PRODUCTS product from an admin API call.
+ *
+ * Mirrors the ADMIN_SPACE "add product" behavior so stock and logs stay
+ * consistent: the master row is created at stock 0, then any initial stock is
+ * added through a STOCK_IN transaction (which updates Stok_Aktif and writes an
+ * INVENTORY_LOG entry). Product_ID/SKU reuse the existing project generators.
+ */
+function apiAdminProductsCreate_(payload) {
+  return withDocumentLock_(function() {
+    var cfg = tvjConfig_();
+    var now = new Date();
+
+    var namaProduk = String(payload.nama_produk || payload.Nama_Produk || '').trim();
+    if (namaProduk === '') {
+      throw new Error('Nama_Produk is required.');
+    }
+
+    var rows = getRowsAsObjects_(cfg.sheets.master);
+    var suppliedSku = normalizeSku_(payload.sku || payload.SKU || '');
+    if (suppliedSku !== '') {
+      for (var i = 0; i < rows.length; i++) {
+        if (normalizeSku_(rows[i].SKU) === suppliedSku) {
+          throw new Error('SKU already exists in MASTER_PRODUCTS: ' + suppliedSku);
+        }
+      }
+    }
+    var sku = suppliedSku !== '' ? suppliedSku : getNextAdminSpaceSku_();
+    var productId = getNextAdminSpaceProductId_();
+
+    var hargaModal = safeToNumber_(payload.harga_modal || payload.Harga_Modal);
+    var hargaJual = safeToNumber_(payload.harga_jual || payload.Harga_Jual);
+    var marginRp = hargaJual > 0 ? hargaJual - hargaModal : 0;
+    var marginPersen = hargaJual > 0 ? marginRp / hargaJual : 0;
+
+    var minimumStok = safeToNumber_(payload.minimum_stok || payload.Minimum_Stok);
+    if (minimumStok <= 0) {
+      minimumStok = safeToNumber_(getSettingValue_(cfg.settingsKeys.lowStockDefault, 1)) || 1;
+    }
+
+    var stokAwal = safeToNumber_(payload.stok_aktif || payload.Stok_Aktif || payload.stok_awal);
+    if (stokAwal < 0) {
+      throw new Error('Stok awal cannot be negative.');
+    }
+
+    var statusProduk = normalizeText_(payload.status_produk || payload.Status_Produk) === cfg.statuses.inactive
+      ? cfg.statuses.inactive
+      : cfg.statuses.active;
+
+    var productRow = {
+      Product_ID: productId,
+      SKU: sku,
+      Nama_Produk: namaProduk,
+      Kategori: String(payload.kategori || payload.Kategori || '').trim(),
+      Model_Vespa: String(payload.model_vespa || payload.Model_Vespa || '').trim(),
+      Deskripsi_Singkat: String(payload.deskripsi_singkat || payload.Deskripsi_Singkat || '').trim(),
+      Harga_Modal: hargaModal,
+      Harga_Jual: hargaJual,
+      Margin_Rp: marginRp,
+      Margin_Persen: marginPersen,
+      Stok_Aktif: 0,
+      Minimum_Stok: minimumStok,
+      Status_Stok: calculateStockStatus_(0, minimumStok),
+      Status_Produk: statusProduk,
+      Image_URL: String(payload.image_url || payload.Image_URL || '').trim(),
+      Berat: safeToNumber_(payload.berat || payload.Berat),
+      Lokasi_Rak: String(payload.lokasi_rak || payload.Lokasi_Rak || '').trim(),
+      Last_Updated: now,
+      Updated_By: payload.actor || payload.Actor || 'ADMIN_API'
+    };
+    var masterRowNumber = appendObjectRow_(cfg.sheets.master, productRow);
+
+    var stockInId = '';
+    if (stokAwal > 0) {
+      stockInId = generateOperationalId_('IN');
+      var stockInRowNumber = appendObjectRow_(cfg.sheets.stockIn, {
+        In_ID: stockInId,
+        Tanggal: now,
+        SKU: sku,
+        Nama_Produk: namaProduk,
+        Qty_Masuk: stokAwal,
+        Harga_Modal_Satuan: hargaModal,
+        Total_Modal_Masuk: stokAwal * hargaModal,
+        Supplier: 'ADMIN_API',
+        Catatan: 'STOK_AWAL',
+        Input_By: 'ADMIN_API'
+      });
+      processStockInRowUnlocked_(getSheet_(cfg.sheets.stockIn, true), stockInRowNumber, 'ADMIN_API');
+    }
+
+    return apiSuccess_('PRODUCT_CREATED', {
+      product_id: productId,
+      sku: sku,
+      nama_produk: namaProduk,
+      stok_aktif: stokAwal,
+      stock_in_id: stockInId
+    });
+  });
+}
+
+/**
  * Calls spreadsheet backup from an admin API route.
  */
 function apiAdminSystemBackup_() {
