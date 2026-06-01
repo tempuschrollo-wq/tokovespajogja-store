@@ -45,7 +45,6 @@ function refreshAdminSpace() {
     adminSheet.getRange(adminCfg.masterStartRow, masterStartCol, output.length, masterColumnCount).setValues(output);
   }
   updateAdminSpaceInputNotes_(adminSheet, adminCfg);
-  refreshAdminSpaceSkuAutoFormulas_(adminSheet, adminCfg);
 
   var metrics = callIfFunctionExists_('getDashboardMetrics_', function() {
     var fallback = {
@@ -765,53 +764,6 @@ function refreshAdminSpaceSummaryFromLookup_(adminSheet, adminCfg, productLookup
       profitHariIni
     ]
   ]);
-}
-
-/**
- * Restores the live "SKU Auto" formulas for the product-option input sections
- * (stock in, stock out, stock correction). Each SKU Auto cell reads the product
- * option cell on the same row and extracts the SKU from the
- * "Nama Produk | SKU | Stok: n" display format, so the SKU updates instantly
- * when the dropdown changes.
- *
- * Uses setFormulasLocal with semicolon argument separators so the formula is
- * valid for spreadsheets whose locale requires semicolons (writing comma
- * formulas via setFormulas produced #ERROR in those locales). Add Product is
- * intentionally skipped because it has no product option / SKU Auto column.
- */
-function refreshAdminSpaceSkuAutoFormulas_(adminSheet, adminCfg) {
-  var sections = [
-    { columns: adminCfg.columns.stockIn, rows: adminCfg.formRows.stockIn },
-    { columns: adminCfg.columns.stockOut, rows: adminCfg.formRows.stockOut },
-    { columns: adminCfg.columns.stockCorrection, rows: adminCfg.formRows.stockCorrection }
-  ];
-
-  for (var s = 0; s < sections.length; s++) {
-    var cols = sections[s].columns;
-    var rows = sections[s].rows;
-    if (!cols || !rows || !cols.skuAuto || !cols.productOption) {
-      continue;
-    }
-    var rowCount = rows.endRow - rows.startRow + 1;
-    if (rowCount <= 0) {
-      continue;
-    }
-    var formulas = [];
-    for (var r = 0; r < rowCount; r++) {
-      var optionA1 = adminSheet.getRange(rows.startRow + r, cols.productOption).getA1Notation();
-      formulas.push([buildAdminSpaceSkuAutoFormulaLocal_(optionA1)]);
-    }
-    adminSheet.getRange(rows.startRow, cols.skuAuto, rowCount, 1).setFormulasLocal(formulas);
-  }
-}
-
-/**
- * Builds one locale-safe (semicolon-separated) SKU Auto formula referencing the
- * same-row product option cell.
- */
-function buildAdminSpaceSkuAutoFormulaLocal_(optionA1) {
-  return '=IF(' + optionA1 + '="";"";IFERROR(TRIM(INDEX(SPLIT(' + optionA1 +
-    ';"|");1;2));IFERROR(REGEXEXTRACT(' + optionA1 + ';"JVS-\\d+");"")))';
 }
 
 function updateAdminSpaceInputNotes_(adminSheet, adminCfg) {
