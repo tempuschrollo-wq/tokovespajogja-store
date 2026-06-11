@@ -194,7 +194,102 @@
               <button class="admin-button admin-button-secondary" id="export-button" type="button">
                 Export Snapshot JSON
               </button>
+              <button class="admin-button admin-button-secondary" id="scroll-to-products-button" type="button">
+                Cari Produk
+              </button>
             </div>
+          </section>
+
+          <section class="dashboard-card marketplace-card kulakan-card">
+            <div class="marketplace-head">
+              <div>
+                <h3>Barang Masuk / Kulakan</h3>
+                <p>
+                  Catat setiap barang masuk (kulakan) supaya riwayat stok masuk tersimpan jelas,
+                  bukan sekadar edit stok langsung.
+                </p>
+              </div>
+              <p class="marketplace-head-note">
+                Catatan: tombol simpan masih placeholder dan belum terhubung ke inventory live.
+              </p>
+            </div>
+
+            <form class="marketplace-form" id="kulakan-form">
+              <div class="marketplace-form-grid">
+                <label class="access-field" for="kulakan-product-search">
+                  <span>Cari produk / SKU</span>
+                  <input
+                    id="kulakan-product-search"
+                    type="search"
+                    placeholder="Cari SKU atau nama produk..."
+                    autocomplete="off"
+                  />
+                </label>
+
+                <label class="access-field" for="kulakan-product">
+                  <span>Nama produk</span>
+                  <select id="kulakan-product" required></select>
+                </label>
+
+                <label class="access-field" for="kulakan-sku">
+                  <span>SKU (otomatis)</span>
+                  <input
+                    id="kulakan-sku"
+                    type="text"
+                    readonly
+                    placeholder="Terisi otomatis dari produk"
+                  />
+                </label>
+
+                <label class="access-field" for="kulakan-qty">
+                  <span>Qty masuk</span>
+                  <input id="kulakan-qty" type="number" min="1" step="1" value="1" required />
+                </label>
+
+                <label class="access-field" for="kulakan-hpp">
+                  <span>HPP / Modal</span>
+                  <input
+                    id="kulakan-hpp"
+                    type="text"
+                    inputmode="numeric"
+                    placeholder="Contoh: Rp20.000"
+                    required
+                  />
+                </label>
+
+                <label class="access-field" for="kulakan-price">
+                  <span>Harga Jual</span>
+                  <input
+                    id="kulakan-price"
+                    type="text"
+                    inputmode="numeric"
+                    placeholder="Contoh: Rp25.000"
+                  />
+                </label>
+
+                <label class="access-field marketplace-note-field" for="kulakan-note">
+                  <span>Catatan</span>
+                  <textarea
+                    id="kulakan-note"
+                    rows="3"
+                    placeholder="Opsional. Contoh: nama supplier atau nomor nota kulakan."
+                  ></textarea>
+                </label>
+              </div>
+
+              <div class="marketplace-actions">
+                <button
+                  class="admin-button admin-button-primary"
+                  id="kulakan-submit-button"
+                  type="submit"
+                >
+                  Simpan Barang Masuk
+                </button>
+                <p class="marketplace-inline-status" id="kulakan-inline-status">
+                  Transaksi kulakan akan menambah stok pusat dan masuk riwayat barang masuk (segera).
+                </p>
+              </div>
+            </form>
           </section>
 
           <section class="dashboard-card marketplace-card">
@@ -333,41 +428,6 @@
             </div>
           </section>
 
-          <section class="dashboard-card connector-card">
-            <div class="connector-head">
-              <div>
-                <h3>Koneksi Admin Live</h3>
-                <p>
-                  Masukkan token admin dari Apps Script sekali saja di browser ini agar tombol simpan, kelola stok, dan proses order bisa dipakai.
-                </p>
-              </div>
-              <p class="connector-status" id="connector-status">
-                Token admin belum tersimpan di browser ini.
-              </p>
-            </div>
-
-            <form class="connector-form" id="connector-form">
-              <label class="access-field">
-                <span>Admin API token</span>
-                <input
-                  id="admin-api-token"
-                  type="password"
-                  placeholder="Tempel token admin live di sini"
-                  autocomplete="off"
-                />
-              </label>
-
-              <div class="connector-actions">
-                <button class="admin-button admin-button-primary" type="submit">
-                  Simpan Token Browser
-                </button>
-                <button class="admin-button admin-button-secondary" id="clear-token-button" type="button">
-                  Hapus Token Browser
-                </button>
-              </div>
-            </form>
-          </section>
-
           <section class="dashboard-card orders-card">
             <div class="orders-head">
               <div>
@@ -468,7 +528,7 @@
             </div>
           </section>
 
-          <section class="dashboard-card manager-card">
+          <section class="dashboard-card manager-card" id="product-manager">
             <div class="manager-head">
               <div>
                 <h3>Daftar Produk</h3>
@@ -564,19 +624,19 @@
                 </label>
 
                 <label class="access-field">
-                  <span>Harga tampilan</span>
+                  <span>Harga Tampilan</span>
                   <input
                     id="product-price-display"
                     type="text"
                     placeholder="Contoh: Rp125.000 atau Hubungi admin"
                   />
                   <small class="field-hint">
-                    Akan otomatis mengikuti harga angka selama isinya masih berupa nominal Rupiah.
+                    Teks harga yang muncul di website. Otomatis mengikuti Harga Jual selama isinya berupa nominal Rupiah, atau isi "Hubungi admin" untuk menyembunyikan harga.
                   </small>
                 </label>
 
                 <label class="access-field">
-                  <span>Harga angka</span>
+                  <span>Harga Jual</span>
                   <input
                     id="product-price"
                     type="text"
@@ -623,6 +683,41 @@
               <button class="admin-button admin-button-primary" type="submit">
                 Simpan ke Inventory Live
               </button>
+            </form>
+          </section>
+
+          <section class="dashboard-card connector-card">
+            <div class="connector-head">
+              <div>
+                <h3>Koneksi Admin Live</h3>
+                <p>
+                  Masukkan token admin dari Apps Script sekali saja di browser ini agar tombol simpan, kelola stok, dan proses order bisa dipakai.
+                </p>
+              </div>
+              <p class="connector-status" id="connector-status">
+                Token admin belum tersimpan di browser ini.
+              </p>
+            </div>
+
+            <form class="connector-form" id="connector-form">
+              <label class="access-field">
+                <span>Admin API token</span>
+                <input
+                  id="admin-api-token"
+                  type="password"
+                  placeholder="Tempel token admin live di sini"
+                  autocomplete="off"
+                />
+              </label>
+
+              <div class="connector-actions">
+                <button class="admin-button admin-button-primary" type="submit">
+                  Simpan Token Browser
+                </button>
+                <button class="admin-button admin-button-secondary" id="clear-token-button" type="button">
+                  Hapus Token Browser
+                </button>
+              </div>
             </form>
           </section>
 

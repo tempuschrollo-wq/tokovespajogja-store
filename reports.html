@@ -109,12 +109,17 @@
             <article class="dashboard-card report-card report-card-wide">
               <div class="report-card-head">
                 <div>
-                  <p class="eyebrow">Statistik Harian</p>
-                  <h2>Penjualan 7 hari terakhir</h2>
+                  <p class="eyebrow">Aktivitas Penjualan</p>
+                  <h2>10 Produk Terakhir yang Laku</h2>
                 </div>
-                <span id="daily-summary-note">Dihitung dari order aktif.</span>
+                <span id="recent-sold-note">Dari order aktif semua channel.</span>
               </div>
-              <div class="daily-chart" id="daily-chart"></div>
+              <div class="rank-list" id="recent-sold-list"></div>
+              <div class="report-card-actions">
+                <button class="admin-button admin-button-secondary" id="stockout-open-button" type="button">
+                  Lihat detail stock out 7 hari terakhir
+                </button>
+              </div>
             </article>
 
             <article class="dashboard-card report-card">
@@ -150,16 +155,6 @@
                 <span id="weekly-period">-</span>
               </div>
               <div class="report-metric-list" id="weekly-metrics"></div>
-              <div class="report-subgrid">
-                <div>
-                  <h3>Top produk minggu ini</h3>
-                  <div class="rank-list" id="weekly-top-products"></div>
-                </div>
-                <div>
-                  <h3>Kategori terlaris</h3>
-                  <div class="rank-list" id="weekly-top-categories"></div>
-                </div>
-              </div>
             </article>
 
             <article class="dashboard-card report-card">
@@ -286,6 +281,31 @@
             </thead>
             <tbody id="low-stock-table-body"></tbody>
           </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="report-modal" id="stockout-modal" hidden>
+      <div class="report-modal-backdrop" data-stockout-close></div>
+      <section
+        class="report-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="stockout-modal-title"
+      >
+        <div class="report-modal-head">
+          <div>
+            <p class="eyebrow">Barang Keluar</p>
+            <h2 id="stockout-modal-title">Stock out per hari (7 hari terakhir)</h2>
+          </div>
+          <button class="modal-close-button" type="button" data-stockout-close aria-label="Tutup detail stock out">
+            &times;
+          </button>
+        </div>
+
+        <p class="low-stock-note" id="daily-summary-note">Dihitung dari order aktif.</p>
+        <div class="low-stock-table-wrap">
+          <div class="daily-stockout" id="daily-stockout-list"></div>
         </div>
       </section>
     </div>

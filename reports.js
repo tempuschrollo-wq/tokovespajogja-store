@@ -35,7 +35,11 @@ const kpiLowStock = document.querySelector("#kpi-low-stock")
 const kpiOutStock = document.querySelector("#kpi-out-stock")
 
 const dailySummaryNote = document.querySelector("#daily-summary-note")
-const dailyChart = document.querySelector("#daily-chart")
+const dailyStockOutList = document.querySelector("#daily-stockout-list")
+const recentSoldNote = document.querySelector("#recent-sold-note")
+const recentSoldList = document.querySelector("#recent-sold-list")
+const stockoutOpenButton = document.querySelector("#stockout-open-button")
+const stockoutModal = document.querySelector("#stockout-modal")
 const lowStockNote = document.querySelector("#low-stock-note")
 const lowStockList = document.querySelector("#low-stock-list")
 const lowStockSummaryOut = document.querySelector("#low-stock-summary-out")
@@ -51,8 +55,6 @@ const lowStockTableMeta = document.querySelector("#low-stock-table-meta")
 const lowStockTableBody = document.querySelector("#low-stock-table-body")
 const weeklyPeriod = document.querySelector("#weekly-period")
 const weeklyMetrics = document.querySelector("#weekly-metrics")
-const weeklyTopProducts = document.querySelector("#weekly-top-products")
-const weeklyTopCategories = document.querySelector("#weekly-top-categories")
 const monthlyPeriod = document.querySelector("#monthly-period")
 const monthlyMetrics = document.querySelector("#monthly-metrics")
 const monthlyTopProducts = document.querySelector("#monthly-top-products")
@@ -463,42 +465,15 @@ const getFilteredLowStockProducts = () => {
   })
 }
 
-const getLastSevenDayStats = (orders, today) => {
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = startOfDay(today)
-    date.setDate(date.getDate() - (6 - index))
-    return {
-      date,
-      orders: 0,
-      units: 0,
-      revenue: 0
-    }
-  })
-
-  for (const order of orders) {
-    if (!order.orderDate || !isActiveOrder(order)) {
-      continue
-    }
-
-    const orderDay = startOfDay(order.orderDate).getTime()
-    const targetDay = days.find((day) => day.date.getTime() === orderDay)
-
-    if (!targetDay) {
-      continue
-    }
-
-    targetDay.orders += 1
-    targetDay.units += order.qtyTotal
-    targetDay.revenue += order.productRevenue
-  }
-
-  return days
-}
-
 const renderMetrics = (target, report) => {
-  const averageOrder = report.ordersCount ? Math.round(report.revenue / report.ordersCount) : 0
+  // "Total order" harus mencakup semua flow yang masuk STOCK_OUT: order website
+  // (Orders_Count) + transaksi marketplace/offline (Marketplace_Offline_Count).
+  // Sebelumnya hanya Orders_Count (ORDERS_WEBSITE) sehingga angkanya 0 saat
+  // penjualan periode itu hanya berasal dari marketplace/offline.
+  const totalOrders = report.ordersCount + report.marketplaceOfflineCount
+  const averageOrder = totalOrders ? Math.round(report.revenue / totalOrders) : 0
   target.innerHTML = [
-    { label: "Total order", value: `${formatItemCount(report.ordersCount)} order` },
+    { label: "Total order", value: `${formatItemCount(totalOrders)} order` },
     { label: "Item keluar", value: `${formatItemCount(report.unitsSold)} item` },
     { label: "Omzet produk", value: formatRupiahSigned(report.revenue) },
     { label: "Estimasi modal", value: formatRupiahSigned(report.cogs) },
@@ -684,32 +659,166 @@ const closeLowStockModal = () => {
   lowStockOpenButton.focus()
 }
 
-const renderDailyChart = (orders, today) => {
-  const stats = getLastSevenDayStats(orders, today)
-  const maxRevenue = Math.max(1, ...stats.map((day) => day.revenue))
-  const totalRevenue = stats.reduce((total, day) => total + day.revenue, 0)
-  const totalOrders = stats.reduce((total, day) => total + day.orders, 0)
-  dailySummaryNote.textContent = `${formatItemCount(totalOrders)} order · ${formatRupiah(totalRevenue)} omzet produk`
+const openStockoutModal = () => {
+  if (!stockoutModal) {
+    return
+  }
+  // Render ulang dari data terbaru sebelum modal dibuka.
+  renderDailyStockOut(state.orders, new Date())
+  stockoutModal.hidden = false
+  document.body.classList.add("is-modal-open")
+}
 
-  dailyChart.innerHTML = stats
+const closeStockoutModal = () => {
+  if (!stockoutModal) {
+    return
+  }
+  stockoutModal.hidden = true
+  document.body.classList.remove("is-modal-open")
+  stockoutOpenButton?.focus()
+}
+
+// Daftar barang keluar per hari (7 hari terakhir, hari ini di atas).
+// Tiap hari: list produk + qty + total nilai. Sumber: state.orders (semua channel).
+const renderDailyStockOut = (orders, today) => {
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = startOfDay(today)
+    date.setDate(date.getDate() - index)
+    return { date, items: new Map(), units: 0, revenue: 0 }
+  })
+  const dayByTime = new Map(days.map((day) => [day.date.getTime(), day]))
+
+  for (const order of orders) {
+    if (!order.orderDate || !isActiveOrder(order)) {
+      continue
+    }
+
+    const day = dayByTime.get(startOfDay(order.orderDate).getTime())
+    if (!day) {
+      continue
+    }
+
+    for (const item of order.items) {
+      const key = String(item.sku || item.nama_produk || "").toUpperCase()
+      if (!day.items.has(key)) {
+        day.items.set(key, {
+          sku: item.sku,
+          name: item.nama_produk || item.sku || "-",
+          qty: 0,
+          revenue: 0
+        })
+      }
+      const entry = day.items.get(key)
+      const qty = Number(item.qty || 0)
+      entry.qty += qty
+      entry.revenue += Number(item.subtotal || 0)
+      day.units += qty
+      day.revenue += Number(item.subtotal || 0)
+    }
+  }
+
+  const totalUnits = days.reduce((total, day) => total + day.units, 0)
+  const totalRevenue = days.reduce((total, day) => total + day.revenue, 0)
+  if (dailySummaryNote) {
+    dailySummaryNote.textContent = `${formatItemCount(totalUnits)} item keluar · ${formatRupiah(totalRevenue)} dalam 7 hari`
+  }
+
+  if (!dailyStockOutList) {
+    return
+  }
+
+  dailyStockOutList.innerHTML = days
     .map((day) => {
-      const width = Math.max(4, Math.round((day.revenue / maxRevenue) * 100))
-      return `
-        <div class="daily-row">
-          <span class="daily-date">
-            <strong>${formatWeekday(day.date)}</strong>
-            <small>${formatShortDate(day.date)}</small>
-          </span>
-          <span class="daily-bar-track" aria-hidden="true">
-            <span class="daily-bar" style="--bar-width: ${width}%"></span>
-          </span>
-          <span class="daily-value">
-            <strong>${formatRupiah(day.revenue)}</strong>
-            <small>${formatItemCount(day.orders)} order · ${formatItemCount(day.units)} item</small>
-          </span>
+      const items = [...day.items.values()].sort((left, right) => right.qty - left.qty)
+      const head = `
+        <div class="daily-date">
+          <strong>${escapeHtml(formatWeekday(day.date))}</strong>
+          <small>${escapeHtml(formatShortDate(day.date))} · ${formatItemCount(day.units)} item</small>
         </div>
       `
+      const body = items.length
+        ? `<div class="rank-list">${items
+            .map(
+              (item) => `
+                <article class="rank-item">
+                  <span class="rank-copy">
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <small class="rank-meta">${escapeHtml(item.sku || "")} · ${formatItemCount(item.qty)} item</small>
+                  </span>
+                  <span class="rank-value">${formatRupiah(item.revenue)}</span>
+                </article>
+              `
+            )
+            .join("")}</div>`
+        : `<div class="empty-report">Tidak ada barang keluar.</div>`
+      return `<div class="daily-stockout-day">${head}${body}</div>`
     })
+    .join("")
+}
+
+// 10 produk terakhir yang laku (paling baru terjual), dedup per produk.
+// Sumber: state.orders (website + marketplace + offline). Detail 7-hari ada di <details>.
+const renderRecentSoldProducts = (orders) => {
+  const sales = []
+  for (const order of orders) {
+    if (!order.orderDate || !isActiveOrder(order)) {
+      continue
+    }
+    for (const item of order.items) {
+      sales.push({
+        sku: String(item.sku || "").toUpperCase(),
+        name: item.nama_produk || item.sku || "-",
+        qty: Number(item.qty || 0),
+        revenue: Number(item.subtotal || 0),
+        date: order.orderDate
+      })
+    }
+  }
+
+  sales.sort((left, right) => right.date - left.date)
+
+  const seen = new Set()
+  const recent = []
+  for (const sale of sales) {
+    const key = sale.sku || sale.name
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    recent.push(sale)
+    if (recent.length >= 10) {
+      break
+    }
+  }
+
+  if (recentSoldNote) {
+    recentSoldNote.textContent = recent.length
+      ? `${formatItemCount(recent.length)} produk terakhir terjual (semua channel).`
+      : "Belum ada produk terjual."
+  }
+
+  if (!recentSoldList) {
+    return
+  }
+
+  if (!recent.length) {
+    recentSoldList.innerHTML = `<div class="empty-report">Belum ada penjualan tercatat.</div>`
+    return
+  }
+
+  recentSoldList.innerHTML = recent
+    .map(
+      (sale, index) => `
+        <article class="rank-item">
+          <span class="rank-number">#${index + 1}</span>
+          <span class="rank-copy">
+            <strong>${escapeHtml(sale.name)}</strong>
+            <small class="rank-meta">${escapeHtml(sale.sku || "")} · ${formatItemCount(sale.qty)} item · ${escapeHtml(formatShortDate(sale.date))}</small>
+          </span>
+          <span class="rank-value">${formatRupiah(sale.revenue)}</span>
+        </article>
+      `
+    )
     .join("")
 }
 
@@ -803,12 +912,6 @@ const renderReports = () => {
     start: todayStart,
     end: todayEnd
   })
-  const weekReport = calculatePeriodReport({
-    orders,
-    products,
-    start: weekStart,
-    end: weekEnd
-  })
   const monthReport = calculatePeriodReport({
     orders,
     products,
@@ -828,7 +931,17 @@ const renderReports = () => {
   const monthProfit = pickReportNumber(monthlyBackend, ["estimatedGrossProfit", "Estimated_Gross_Profit"])
 
   kpiTodayRevenue.textContent = formatRupiah(todayRevenue)
-  kpiTodayOrders.textContent = `${formatItemCount(todayReport.ordersCount)} order · ${formatItemCount(todayReport.unitsSold)} item · profit ${formatRupiahSigned(todayProfit)}`
+  // Hindari "0 order · 0 item": tampilkan hitungan bila ada transaksi hari ini
+  // (state.orders = website + marketplace + offline), atau fallback ke omzet/empty.
+  const todayOrders = todayReport.ordersCount
+  const todayUnits = todayReport.unitsSold
+  if (todayOrders > 0 || todayUnits > 0) {
+    kpiTodayOrders.textContent = `${formatItemCount(todayOrders)} order · ${formatItemCount(todayUnits)} item · profit ${formatRupiahSigned(todayProfit)}`
+  } else if (todayRevenue > 0) {
+    kpiTodayOrders.textContent = `Omzet ${formatRupiah(todayRevenue)} · profit ${formatRupiahSigned(todayProfit)}`
+  } else {
+    kpiTodayOrders.textContent = "Belum ada penjualan hari ini"
+  }
   kpiWeekRevenue.textContent = formatRupiah(weekRevenue)
   kpiWeekProfit.textContent = `Profit estimasi ${formatRupiahSigned(weekProfit)}`
   kpiMonthRevenue.textContent = formatRupiah(monthRevenue)
@@ -841,14 +954,6 @@ const renderReports = () => {
   }).format(now)
   renderMetrics(weeklyMetrics, buildBackendPeriodMetrics(weeklyBackend))
   renderMetrics(monthlyMetrics, buildBackendPeriodMetrics(monthlyBackend))
-  renderRankList(weeklyTopProducts, weekReport.topProducts, {
-    emptyText: "Belum ada penjualan minggu ini.",
-    limit: 5
-  })
-  renderRankList(weeklyTopCategories, weekReport.topCategories, {
-    emptyText: "Kategori minggu ini belum terbaca.",
-    limit: 5
-  })
   renderRankList(monthlyTopProducts, monthReport.topProducts, {
     emptyText: "Belum ada penjualan bulan ini.",
     limit: 10
@@ -858,7 +963,8 @@ const renderReports = () => {
     limit: 5
   })
   renderLowStockList(products)
-  renderDailyChart(orders, now)
+  renderRecentSoldProducts(orders)
+  renderDailyStockOut(orders, now)
   renderSalesRanking(orders, products)
   renderMonthlyArchive()
   reportSyncLabel.textContent = state.loadedAt
@@ -963,34 +1069,41 @@ const loadReports = async ({ force = false } = {}) => {
     console.error(error)
   }
 
+  // Order & item harian/7-hari dihitung dari gabungan SEMUA flow yang masuk STOCK_OUT:
+  // order website (ORDERS_WEBSITE) + marketplace/offline (STOCK_OUT bertag).
+  // Kedua feed di-fetch independen supaya kegagalan salah satu tidak mengosongkan
+  // state.orders (penyebab umum metrik 0 padahal STOCK_OUT ada datanya).
+  const mergedOrders = []
+  const orderWarnings = []
+
   try {
-    const websiteOrders = await fetchAllAdminOrders()
-    let marketplaceOrders = []
-    let marketplaceWarning = ""
-
-    try {
-      const marketplacePayload = await fetchAdminMarketplaceHistory({
-        limit: 1000
-      })
-      marketplaceOrders = Array.isArray(marketplacePayload.items)
-        ? marketplacePayload.items.map(normalizeMarketplaceSaleAsOrder)
-        : []
-    } catch (error) {
-      console.error(error)
-      marketplaceWarning =
-        "Riwayat marketplace/offline belum terbaca, jadi laporan website bisa berbeda dari Sheet."
-    }
-
-    state.orders = [...websiteOrders, ...marketplaceOrders]
-    reportTokenNote.textContent = marketplaceWarning
-      ? `${marketplaceWarning} Profit tetap estimasi dan HPP kosong dihitung 0.`
-      : "Profit masih estimasi karena memakai harga modal aktif produk saat laporan dibaca. HPP kosong dihitung 0."
+    mergedOrders.push(...(await fetchAllAdminOrders()))
   } catch (error) {
     console.error(error)
-    state.orders = []
-    state.error = error.message || "Data order belum bisa dimuat."
-    reportTokenNote.textContent = state.error
+    orderWarnings.push(error.message || "Order website belum bisa dimuat.")
   }
+
+  try {
+    const marketplacePayload = await fetchAdminMarketplaceHistory({
+      limit: 1000
+    })
+    if (Array.isArray(marketplacePayload.items)) {
+      mergedOrders.push(...marketplacePayload.items.map(normalizeMarketplaceSaleAsOrder))
+    }
+  } catch (error) {
+    console.error(error)
+    orderWarnings.push(
+      "Riwayat marketplace/offline belum terbaca, jadi laporan bisa berbeda dari Sheet."
+    )
+  }
+
+  state.orders = mergedOrders
+  if (!mergedOrders.length && orderWarnings.length) {
+    state.error = orderWarnings[0]
+  }
+  reportTokenNote.textContent = orderWarnings.length
+    ? `${orderWarnings.join(" ")} Profit tetap estimasi dan HPP kosong dihitung 0.`
+    : "Profit masih estimasi karena memakai harga modal aktif produk saat laporan dibaca. HPP kosong dihitung 0."
 
   try {
     state.loadedAt = new Date()
@@ -1038,9 +1151,20 @@ const init = () => {
       closeLowStockModal()
     }
   })
+  stockoutOpenButton?.addEventListener("click", openStockoutModal)
+  stockoutModal?.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.matches("[data-stockout-close]")) {
+      closeStockoutModal()
+    }
+  })
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !lowStockModal.hidden) {
       closeLowStockModal()
+    }
+  })
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && stockoutModal && !stockoutModal.hidden) {
+      closeStockoutModal()
     }
   })
   void loadReports()

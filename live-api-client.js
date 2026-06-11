@@ -514,6 +514,13 @@ export const createAdminMarketplaceOrder = async (marketplacePayload) => {
   }
 }
 
+export const createAdminStockIn = async (stockInPayload) => {
+  const result = await postAdminJson("/admin/stock/in", stockInPayload)
+  clearReadCache_("catalog")
+  clearReadCache_("dashboard-summary")
+  return result
+}
+
 export const fetchAdminMarketplaceHistory = async ({ limit = 8, force = false } = {}) => {
   const token = readAdminApiToken()
   const cacheKey = `marketplace:${token}:${Number(limit || 8)}`

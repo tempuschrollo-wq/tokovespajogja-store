@@ -26,6 +26,7 @@ import {
   clearAdminApiToken,
   createAdminMarketplaceOrder,
   createAdminProduct,
+  createAdminStockIn,
   fetchAdminAuthStatus,
   deleteAdminOrder,
   deleteAdminProduct,
@@ -82,6 +83,8 @@ const actionNote = document.querySelector("#action-note")
 const newProductButton = document.querySelector("#new-product-button")
 const exportButton = document.querySelector("#export-button")
 const refreshLiveButton = document.querySelector("#refresh-live-button")
+const scrollToProductsButton = document.querySelector("#scroll-to-products-button")
+const productManagerSection = document.querySelector("#product-manager")
 
 const marketplaceForm = document.querySelector("#marketplace-form")
 const marketplaceChannelSelect = document.querySelector("#marketplace-channel")
@@ -100,6 +103,18 @@ const marketplaceSubmitButton = document.querySelector("#marketplace-submit-butt
 const marketplaceInlineStatus = document.querySelector("#marketplace-inline-status")
 const marketplaceHistoryList = document.querySelector("#marketplace-history-list")
 const marketplaceRefreshButton = document.querySelector("#marketplace-refresh-button")
+
+const kulakanForm = document.querySelector("#kulakan-form")
+const kulakanProductSearchInput = document.querySelector("#kulakan-product-search")
+const kulakanProductSelect = document.querySelector("#kulakan-product")
+const kulakanSkuInput = document.querySelector("#kulakan-sku")
+const kulakanQtyInput = document.querySelector("#kulakan-qty")
+const kulakanHppInput = document.querySelector("#kulakan-hpp")
+const kulakanPriceInput = document.querySelector("#kulakan-price")
+const kulakanNoteInput = document.querySelector("#kulakan-note")
+const kulakanSubmitButton = document.querySelector("#kulakan-submit-button")
+const kulakanInlineStatus = document.querySelector("#kulakan-inline-status")
+let isSubmittingKulakan = false
 
 const connectorForm = document.querySelector("#connector-form")
 const adminApiTokenInput = document.querySelector("#admin-api-token")
@@ -762,6 +777,151 @@ const renderMarketplaceProductOptions = () => {
 
   if (state.marketplaceSelectedProductId) {
     marketplaceProductSelect.value = state.marketplaceSelectedProductId
+  }
+}
+
+// Isi dropdown produk untuk form Barang Masuk / Kulakan dari daftar produk live.
+// Read-only terhadap state; tidak mengubah pipeline render existing.
+const renderKulakanProductOptions = () => {
+  if (!kulakanProductSelect) {
+    return
+  }
+
+  const query = normalizeText(kulakanProductSearchInput?.value || "")
+  const products = query
+    ? getMarketplaceProducts().filter((product) => product.searchIndex.includes(query))
+    : getMarketplaceProducts()
+
+  if (!products.length) {
+    kulakanProductSelect.innerHTML = query
+      ? '<option value="">Produk tidak ditemukan. Ubah kata kunci pencarian.</option>'
+      : '<option value="">Belum ada produk. Muat data live dulu.</option>'
+    kulakanProductSelect.value = ""
+    return
+  }
+
+  const currentId = kulakanProductSelect.value
+  const keepCurrent = currentId && products.some((product) => product.id === currentId)
+
+  kulakanProductSelect.innerHTML = [
+    '<option value="">Pilih produk...</option>',
+    ...products.map(
+      (product) => `
+        <option value="${escapeHtml(product.id)}">
+          ${escapeHtml(product.sku)} • ${escapeHtml(product.name)}
+        </option>
+      `
+    )
+  ].join("")
+
+  if (keepCurrent) {
+    kulakanProductSelect.value = currentId
+  } else if (query) {
+    kulakanProductSelect.value = products[0].id
+  }
+}
+
+// Auto-fill SKU + Harga Jual dari produk yang dipilih di form Kulakan.
+const syncKulakanFromProduct = () => {
+  const product = kulakanProductSelect
+    ? state.productLookup.get(kulakanProductSelect.value) || null
+    : null
+
+  if (kulakanSkuInput) {
+    kulakanSkuInput.value = product?.sku || ""
+  }
+  if (kulakanPriceInput) {
+    kulakanPriceInput.value = product && product.price > 0 ? formatRupiah(product.price) : ""
+  }
+}
+
+// Status inline form Kulakan (meniru pola Marketplace).
+const updateKulakanInlineStatus = (message, tone = "") => {
+  if (!kulakanInlineStatus) {
+    return
+  }
+  kulakanInlineStatus.textContent = message
+  kulakanInlineStatus.classList.toggle("is-error", tone === "error")
+  kulakanInlineStatus.classList.toggle("is-ready", tone === "success")
+}
+
+// In_ID idempotency untuk satu submit barang masuk (cocok dengan sanitizeId_ backend).
+const generateKulakanInId = () => {
+  const rid =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return `IN-${rid}`.replace(/[^A-Za-z0-9:_-]/g, "").slice(0, 80)
+}
+
+const resetKulakanForm = () => {
+  if (kulakanProductSearchInput) kulakanProductSearchInput.value = ""
+  if (kulakanProductSelect) kulakanProductSelect.value = ""
+  if (kulakanSkuInput) kulakanSkuInput.value = ""
+  if (kulakanQtyInput) kulakanQtyInput.value = "1"
+  if (kulakanHppInput) kulakanHppInput.value = ""
+  if (kulakanPriceInput) kulakanPriceInput.value = ""
+  if (kulakanNoteInput) kulakanNoteInput.value = ""
+  renderKulakanProductOptions()
+}
+
+// Submit barang masuk / kulakan ke inventory live (POST /admin/stock/in).
+const submitKulakanStockIn = async () => {
+  if (isSubmittingKulakan) {
+    return
+  }
+
+  const product = kulakanProductSelect
+    ? state.productLookup.get(kulakanProductSelect.value) || null
+    : null
+  const qty = Math.max(0, Number(kulakanQtyInput?.value || 0) || 0)
+  const hargaModal = Math.max(0, parseRupiahNumber(kulakanHppInput?.value || "") || 0)
+  const hargaJualRaw = (kulakanPriceInput?.value || "").trim()
+  const hargaJual = hargaJualRaw ? Math.max(0, parseRupiahNumber(hargaJualRaw) || 0) : 0
+  const catatan = (kulakanNoteInput?.value || "").trim()
+
+  if (!product) {
+    throw new Error("Pilih produk yang valid dulu.")
+  }
+  if (qty <= 0) {
+    throw new Error("Qty masuk harus lebih besar dari 0.")
+  }
+  if (hargaModal <= 0) {
+    throw new Error("HPP / Modal harus lebih besar dari 0.")
+  }
+
+  isSubmittingKulakan = true
+  setButtonPending(kulakanSubmitButton, true, "Menyimpan...")
+  updateKulakanInlineStatus("Barang masuk sedang disimpan...")
+
+  try {
+    const payload = {
+      in_id: generateKulakanInId(),
+      sku: product.sku,
+      nama_produk: product.name,
+      qty_masuk: qty,
+      harga_modal: hargaModal,
+      catatan
+    }
+    if (hargaJual > 0) {
+      payload.harga_jual = hargaJual
+    }
+
+    const response = await createAdminStockIn(payload)
+
+    resetKulakanForm()
+    updateKulakanInlineStatus(
+      response?.idempotent
+        ? `Barang masuk ${product.name} sudah tercatat sebelumnya.`
+        : `Barang masuk ${product.name} (+${qty}) berhasil dicatat.`,
+      "success"
+    )
+    setStatus(`Barang masuk ${product.name} berhasil disimpan ke inventory live.`, {
+      toast: true
+    })
+  } finally {
+    isSubmittingKulakan = false
+    setButtonPending(kulakanSubmitButton, false)
   }
 }
 
@@ -2568,6 +2728,12 @@ const bindEvents = () => {
     editorCard.scrollIntoView({ behavior: "smooth", block: "start" })
   })
 
+  scrollToProductsButton?.addEventListener("click", () => {
+    const target = productManagerSection || managerSearchInput
+    target?.scrollIntoView({ behavior: "smooth", block: "start" })
+    managerSearchInput?.focus({ preventScroll: true })
+  })
+
   refreshLiveButton.addEventListener("click", async () => {
     try {
       setButtonPending(refreshLiveButton, true, "Sinkronisasi...")
@@ -2641,6 +2807,17 @@ const bindEvents = () => {
     }
   })
 
+  // Cegah implicit form submission: di mobile, tombol aksi keyboard (Enter / "Go")
+  // saat mengetik di field input seperti "Harga jual" memicu submit form secara native.
+  // Submit hanya boleh terjadi lewat klik tombol "Catat Order".
+  // Select & textarea dibiarkan default (Enter = pilih opsi / baris baru), tombol submit
+  // tetap bisa di-Enter untuk aksesibilitas keyboard.
+  marketplaceForm?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return
+    if (event.target?.tagName !== "INPUT") return
+    event.preventDefault()
+  })
+
   marketplaceForm?.addEventListener("submit", async (event) => {
     event.preventDefault()
 
@@ -2657,6 +2834,39 @@ const bindEvents = () => {
         {
           toast: true,
           tone: error?.code === "ADMIN_ACTION_PENDING_CHECK" ? "info" : "error"
+        }
+      )
+    }
+  })
+
+  // Form Barang Masuk / Kulakan → submit ke POST /admin/stock/in (submitKulakanStockIn).
+  renderKulakanProductOptions()
+  kulakanProductSearchInput?.addEventListener("input", () => {
+    renderKulakanProductOptions()
+    syncKulakanFromProduct()
+  })
+  kulakanProductSelect?.addEventListener("focus", renderKulakanProductOptions)
+  kulakanProductSelect?.addEventListener("change", syncKulakanFromProduct)
+
+  // Cegah implicit submit (Enter / "Go" mobile) dari field input; submit hanya via tombol.
+  kulakanForm?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return
+    if (event.target?.tagName !== "INPUT") return
+    event.preventDefault()
+  })
+
+  kulakanForm?.addEventListener("submit", async (event) => {
+    event.preventDefault()
+    try {
+      await submitKulakanStockIn()
+    } catch (error) {
+      console.error(error)
+      updateKulakanInlineStatus(error.message || "Barang masuk gagal disimpan.", "error")
+      setStatus(
+        getAdminActionErrorMessage(error) || "Barang masuk gagal disimpan ke inventory live.",
+        {
+          toast: true,
+          tone: "error"
         }
       )
     }
