@@ -52,7 +52,7 @@ var TVJ_CONFIG = {
         skuAuto: 2,
         qty: 3,
         hargaModal: 4,
-        note: 5,
+        hargaJual: 5,
         submit: 6
       },
       stockOut: {
@@ -60,7 +60,7 @@ var TVJ_CONFIG = {
         skuAuto: 9,
         qty: 10,
         hargaJual: 11,
-        note: 12,
+        hargaModal: 12,
         submit: 13
       },
       stockCorrection: {

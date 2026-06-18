@@ -43,6 +43,7 @@ function refreshAdminSpace() {
 
   if (output.length > 0) {
     adminSheet.getRange(adminCfg.masterStartRow, masterStartCol, output.length, masterColumnCount).setValues(output);
+    applyAdminMasterStatusDropdown_(adminSheet, adminCfg, output.length);
   }
   updateAdminSpaceInputNotes_(adminSheet, adminCfg);
 
@@ -86,6 +87,23 @@ function refreshAdminSpace() {
   ]);
 
   return notifyUser_('Refresh ADMIN_SPACE complete: ' + output.length + ' product row(s).');
+}
+
+/**
+ * Pasang dropdown (data validation) AKTIF/NONAKTIF di kolom Status mirror MASTER.
+ * Dipasang dari kode agar tidak hilang saat mirror di-regenerate tiap refreshAdminSpace.
+ */
+function applyAdminMasterStatusDropdown_(adminSheet, adminCfg, rowCount) {
+  if (rowCount < 1) {
+    return;
+  }
+  var cfg = tvjConfig_();
+  var statusProdukCol = adminCfg.columns.adminMaster.statusProduk;
+  var rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList([cfg.statuses.active, cfg.statuses.inactive], true)
+    .setAllowInvalid(false)
+    .build();
+  adminSheet.getRange(adminCfg.masterStartRow, statusProdukCol, rowCount, 1).setDataValidation(rule);
 }
 
 /**
@@ -296,7 +314,7 @@ function handleAdminSpaceStockInRow_(adminSheet, row, context, rowValues, rangeS
   var sku = normalizeSku_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.skuAuto)) || extractSkuFromProductOption_(productOption);
   var qty = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.qty));
   var hargaModalInput = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.hargaModal));
-  var note = String(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.note) || '').trim();
+  var hargaJualInput = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.hargaJual));
   var submit = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.submit);
 
   if (submit !== true && normalizeText_(submit) !== 'TRUE') {
@@ -317,7 +335,26 @@ function handleAdminSpaceStockInRow_(adminSheet, row, context, rowValues, rangeS
   }
 
   var inId = generateOperationalId_('IN');
+  // STOCK_IN selalu menyimpan modal: pakai input HPP/Modal (D) bila diisi, else Harga_Modal produk.
   var hargaModal = hargaModalInput > 0 ? hargaModalInput : safeToNumber_(productRef.object.Harga_Modal);
+  // Update MASTER_PRODUCTS bila HPP/Modal (D) atau Harga Jual (E) diisi & berbeda dari master.
+  var priceUpdates = {};
+  if (hargaModalInput > 0 && hargaModalInput !== safeToNumber_(productRef.object.Harga_Modal)) {
+    priceUpdates.Harga_Modal = hargaModalInput;
+  }
+  if (hargaJualInput > 0 && hargaJualInput !== safeToNumber_(productRef.object.Harga_Jual)) {
+    priceUpdates.Harga_Jual = hargaJualInput;
+  }
+  if (Object.keys(priceUpdates).length > 0) {
+    var modalFinal = priceUpdates.hasOwnProperty('Harga_Modal') ? priceUpdates.Harga_Modal : safeToNumber_(productRef.object.Harga_Modal);
+    var jualFinal = priceUpdates.hasOwnProperty('Harga_Jual') ? priceUpdates.Harga_Jual : safeToNumber_(productRef.object.Harga_Jual);
+    priceUpdates.Margin_Rp = jualFinal > 0 ? jualFinal - modalFinal : 0;
+    priceUpdates.Margin_Persen = jualFinal > 0 ? (jualFinal - modalFinal) / jualFinal : 0;
+    priceUpdates.Last_Updated = new Date();
+    priceUpdates.Updated_By = 'ADMIN_SPACE';
+    updateRowByHeaders_(productRef.sheet, productRef.rowNumber, priceUpdates);
+    updateCachedProductObject_(productRef, priceUpdates);
+  }
   var stockInRow = {
     In_ID: inId,
     Tanggal: new Date(),
@@ -327,7 +364,7 @@ function handleAdminSpaceStockInRow_(adminSheet, row, context, rowValues, rangeS
     Harga_Modal_Satuan: hargaModal,
     Total_Modal_Masuk: qty * hargaModal,
     Supplier: 'ADMIN_SPACE',
-    Catatan: note,
+    Catatan: '',
     Input_By: 'ADMIN_SPACE'
   };
   var appendedRow = appendAdminSpaceObjectRow_(context.stockInAppend, cfg.sheets.stockIn, stockInRow);
@@ -338,7 +375,7 @@ function handleAdminSpaceStockInRow_(adminSheet, row, context, rowValues, rangeS
   });
   markAdminSpaceStockDelta_(context, 'stockIn', sku, qty);
 
-  clearAdminSpaceCells_(adminSheet, row, [cols.productOption, cols.qty, cols.hargaModal, cols.note]);
+  clearAdminSpaceCells_(adminSheet, row, [cols.productOption, cols.qty, cols.hargaModal, cols.hargaJual]);
   setSubmitFalse_(adminSheet, row, cols.submit);
   return true;
 }
@@ -355,7 +392,7 @@ function handleAdminSpaceStockOutRow_(adminSheet, row, context, rowValues, range
   var sku = normalizeSku_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.skuAuto)) || extractSkuFromProductOption_(productOption);
   var qty = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.qty));
   var hargaJualInput = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.hargaJual));
-  var note = String(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.note) || '').trim();
+  var hargaModalInput = safeToNumber_(getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.hargaModal));
   var submit = getAdminSpaceRowCell_(adminSheet, row, rowValues, rangeStartCol, cols.submit);
 
   if (submit !== true && normalizeText_(submit) !== 'TRUE') {
@@ -376,6 +413,8 @@ function handleAdminSpaceStockOutRow_(adminSheet, row, context, rowValues, range
   }
 
   var outId = generateOperationalId_('OUT');
+  // Harga Jual (K): diisi -> override; kosong -> Harga_Jual produk dari MASTER_PRODUCTS.
+  // Kolom HPP/Modal (L) hanya konteks visual; tidak disimpan ke STOCK_OUT & tidak update MASTER.
   var hargaJual = hargaJualInput > 0 ? hargaJualInput : safeToNumber_(productRef.object.Harga_Jual);
   var stockOutRow = {
     Out_ID: outId,
@@ -387,7 +426,7 @@ function handleAdminSpaceStockOutRow_(adminSheet, row, context, rowValues, range
     Qty_Keluar: qty,
     Harga_Jual_Satuan: hargaJual,
     Total_Penjualan: qty * hargaJual,
-    Catatan: note,
+    Catatan: '',
     Input_By: 'ADMIN_SPACE'
   };
   var appendedRow = appendAdminSpaceObjectRow_(context.stockOutAppend, cfg.sheets.stockOut, stockOutRow);
@@ -398,7 +437,7 @@ function handleAdminSpaceStockOutRow_(adminSheet, row, context, rowValues, range
   });
   markAdminSpaceStockDelta_(context, 'stockOut', sku, qty);
 
-  clearAdminSpaceCells_(adminSheet, row, [cols.productOption, cols.qty, cols.hargaJual, cols.note]);
+  clearAdminSpaceCells_(adminSheet, row, [cols.productOption, cols.qty, cols.hargaJual, cols.hargaModal]);
   setSubmitFalse_(adminSheet, row, cols.submit);
   return true;
 }
@@ -771,10 +810,16 @@ function updateAdminSpaceInputNotes_(adminSheet, adminCfg) {
   var stockOutRows = adminCfg.formRows.stockOut.endRow - adminCfg.formRows.stockOut.startRow + 1;
   adminSheet
     .getRange(adminCfg.formRows.stockIn.startRow, adminCfg.columns.stockIn.hargaModal, stockInRows, 1)
-    .setNote('Kosongkan untuk memakai HPP/Harga Modal default dari MASTER_PRODUCTS. Isi manual hanya untuk modal kulakan khusus.');
+    .setNote('HPP / Modal. Kosongkan untuk memakai Harga_Modal default dari MASTER_PRODUCTS. Isi untuk update Harga_Modal + margin produk saat barang masuk.');
+  adminSheet
+    .getRange(adminCfg.formRows.stockIn.startRow, adminCfg.columns.stockIn.hargaJual, stockInRows, 1)
+    .setNote('Harga Jual. Kosongkan untuk tidak mengubah Harga Jual produk. Isi untuk update Harga_Jual + margin produk.');
   adminSheet
     .getRange(adminCfg.formRows.stockOut.startRow, adminCfg.columns.stockOut.hargaJual, stockOutRows, 1)
-    .setNote('Kosongkan untuk memakai Harga Jual default dari MASTER_PRODUCTS. Isi manual hanya untuk diskon, harga offline, bundle, atau harga khusus.');
+    .setNote('Harga Jual. Kosongkan untuk memakai Harga Jual default dari MASTER_PRODUCTS. Isi untuk diskon, harga offline, bundle, atau harga khusus (hanya transaksi ini).');
+  adminSheet
+    .getRange(adminCfg.formRows.stockOut.startRow, adminCfg.columns.stockOut.hargaModal, stockOutRows, 1)
+    .setNote('HPP / Modal transaksi ini (opsional, catatan margin). Kosongkan untuk memakai Harga_Modal default.');
 }
 
 /**
@@ -1026,7 +1071,7 @@ function getAdminSpaceConfig_() {
         skuAuto: 2,
         qty: 3,
         hargaModal: 4,
-        note: 5,
+        hargaJual: 5,
         submit: 6
       },
       stockOut: {
@@ -1034,7 +1079,7 @@ function getAdminSpaceConfig_() {
         skuAuto: 9,
         qty: 10,
         hargaJual: 11,
-        note: 12,
+        hargaModal: 12,
         submit: 13
       },
       stockCorrection: {
