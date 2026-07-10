@@ -1,5 +1,8 @@
 import {
+  buildProductShareUrl,
+  buildProductWhatsAppShareUrl,
   escapeHtml,
+  findProductByShareSlug,
   formatCartCount,
   formatCartLinePrice,
   formatDateId,
@@ -8,10 +11,12 @@ import {
   formatRupiah,
   getFeaturedProducts,
   getInventorySummary,
+  getProductImages,
   getProductImageSrc,
   getSearchScore,
   loadCatalog,
   makeProductLookup,
+  matchesSearchQuery,
   syncCartWithInventory
 } from "./catalog-store.js"
 import {
@@ -70,6 +75,25 @@ const orderSuccessWhatsappButton = document.querySelector("#order-success-whatsa
 const orderSuccessCloseButton = document.querySelector("#order-success-close-button")
 const orderModalCloseTargets = document.querySelectorAll("[data-order-modal-close]")
 
+const productDetailModal = document.querySelector("#product-detail-modal")
+const productDetailGalleryTrack = document.querySelector("#product-detail-gallery-track")
+const productDetailGalleryDots = document.querySelector("#product-detail-gallery-dots")
+const productDetailStatus = document.querySelector("#product-detail-status")
+const productDetailStock = document.querySelector("#product-detail-stock")
+const productDetailCategory = document.querySelector("#product-detail-category")
+const productDetailTitle = document.querySelector("#product-detail-title")
+const productDetailMeta = document.querySelector("#product-detail-meta")
+const productDetailModels = document.querySelector("#product-detail-models")
+const productDetailPrice = document.querySelector("#product-detail-price")
+const productDetailNote = document.querySelector("#product-detail-note")
+const productDetailShareButton = document.querySelector("#product-detail-share-button")
+const productDetailShareWaButton = document.querySelector("#product-detail-share-wa-button")
+const productDetailQtyDecrease = document.querySelector("#product-detail-qty-decrease")
+const productDetailQtyIncrease = document.querySelector("#product-detail-qty-increase")
+const productDetailQtyValue = document.querySelector("#product-detail-qty-value")
+const productDetailAddButton = document.querySelector("#product-detail-add-button")
+const productModalCloseTargets = document.querySelectorAll("[data-product-modal-close]")
+
 const quickSearchButtons = document.querySelectorAll(".quick-search")
 const CHECKOUT_NOTE =
   "Harga produk belum termasuk ongkir. Ongkir final akan dikonfirmasi admin setelah alamat tujuan dicek."
@@ -77,6 +101,7 @@ const ADD_TO_CART_LOCK_MS = 900
 const CART_FLY_DURATION_MS = 640
 const CART_HIGHLIGHT_DURATION_MS = 860
 const ORDER_MODAL_CLOSE_MS = 180
+const PRODUCT_MODAL_CLOSE_MS = 180
 const ORDER_PENDING_RETRY_HOLD_MS = 12000
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
 
@@ -92,6 +117,11 @@ const state = {
   isSubmittingOrder: false,
   isRedirectingFollowup: false,
   orderModalCloseTimer: 0,
+  productModalCloseTimer: 0,
+  activeProductId: "",
+  modalQuantity: 1,
+  pendingProductSlug: "",
+  lastFocusedBeforeProductModal: null,
   orderRetryHoldUntil: 0,
   orderRetryHoldTimer: 0
 }
@@ -337,17 +367,271 @@ const applyCatalogSnapshot = (catalog) => {
     return false
   }
 
-  state.products = realCatalog.products
+  if (realCatalog.products.length === 0 && state.products.length > 0) {
+    return false
+  }
 
-  state.products = catalog.products
-  state.productLookup = makeProductLookup(catalog.products)
-  state.updatedAt = catalog.updatedAt || state.updatedAt
-  state.dataSource = catalog.dataSource || "sheet"
+  state.products = realCatalog.products
+  state.productLookup = makeProductLookup(state.products)
+  state.updatedAt = realCatalog.updatedAt || catalog.updatedAt || state.updatedAt
+  state.dataSource = realCatalog.dataSource || catalog.dataSource || state.dataSource
   syncCartWithInventory(cart, state.productLookup)
   renderHero()
   renderProducts()
   renderCart()
+
+  try {
+    maybeOpenPendingProductModal()
+  } catch (error) {
+    console.warn("Product share deep link skipped:", error)
+  }
+
   return true
+}
+
+const getActiveProduct = () => state.productLookup.get(state.activeProductId) || null
+
+const renderProductDetailGallery = (product) => {
+  if (!productDetailGalleryTrack) {
+    return
+  }
+
+  const images = getProductImages(product)
+
+  productDetailGalleryTrack.innerHTML = ""
+
+  images.forEach((src, index) => {
+    const slide = document.createElement("figure")
+    slide.className = "product-detail-gallery-slide"
+
+    const image = document.createElement("img")
+    image.src = src
+    image.alt = `${product.name}${images.length > 1 ? ` foto ${index + 1}` : ""}`
+    image.loading = index === 0 ? "eager" : "lazy"
+    image.decoding = "async"
+
+    slide.appendChild(image)
+    productDetailGalleryTrack.appendChild(slide)
+  })
+
+  if (productDetailGalleryDots) {
+    if (images.length > 1) {
+      productDetailGalleryDots.hidden = false
+      productDetailGalleryDots.innerHTML = ""
+
+      images.forEach((_, index) => {
+        const dot = document.createElement("button")
+        dot.type = "button"
+        dot.className = `product-detail-gallery-dot ${index === 0 ? "is-active" : ""}`
+        dot.dataset.galleryDot = String(index)
+        dot.setAttribute("aria-label", `Foto ${index + 1}`)
+        productDetailGalleryDots.appendChild(dot)
+      })
+    } else {
+      productDetailGalleryDots.hidden = true
+      productDetailGalleryDots.innerHTML = ""
+    }
+  }
+
+  productDetailGalleryTrack.scrollLeft = 0
+}
+
+const syncProductDetailGalleryDots = () => {
+  if (!productDetailGalleryTrack || !productDetailGalleryDots || productDetailGalleryDots.hidden) {
+    return
+  }
+
+  const slideWidth = productDetailGalleryTrack.clientWidth || 1
+  const activeIndex = Math.round(productDetailGalleryTrack.scrollLeft / slideWidth)
+
+  productDetailGalleryDots.querySelectorAll(".product-detail-gallery-dot").forEach((dot, index) => {
+    dot.classList.toggle("is-active", index === activeIndex)
+  })
+}
+
+const updateProductModalQuantityUi = (product) => {
+  const currentCartQty = cart.get(product.id) || 0
+  const maxAddable = Math.max(0, product.stock - currentCartQty)
+  const isOut = product.availability === "out" || product.stock <= 0
+
+  productDetailQtyValue.textContent = String(state.modalQuantity)
+  productDetailQtyDecrease.disabled = state.modalQuantity <= 1
+  productDetailQtyIncrease.disabled = isOut || state.modalQuantity >= maxAddable
+
+  if (isOut) {
+    productDetailAddButton.disabled = true
+    productDetailAddButton.classList.add("is-disabled")
+    productDetailAddButton.textContent = "Stock Habis"
+    productDetailNote.textContent = "Produk ini sedang habis. Kamu masih bisa bagikan link ke admin untuk cek ketersediaan."
+    return
+  }
+
+  if (maxAddable <= 0) {
+    productDetailAddButton.disabled = true
+    productDetailAddButton.classList.add("is-disabled")
+    productDetailAddButton.textContent = "Stok di keranjang sudah maksimum"
+    productDetailNote.textContent = `Semua stok ${product.name} sudah ada di keranjang kamu.`
+    return
+  }
+
+  productDetailAddButton.disabled = false
+  productDetailAddButton.classList.remove("is-disabled")
+  productDetailAddButton.textContent = "Masuk Keranjang"
+  productDetailNote.textContent =
+    product.price <= 0
+      ? "Harga produk perlu konfirmasi admin. Ongkir belum termasuk."
+      : "Harga belum termasuk ongkir. Ongkir dikonfirmasi admin setelah alamat dicek."
+}
+
+const renderProductDetailModal = (product) => {
+  if (!product || !productDetailModal) {
+    return
+  }
+
+  renderProductDetailGallery(product)
+
+  productDetailStatus.className = `product-status ${product.availability}`
+  productDetailStatus.textContent = product.availabilityLabel
+  productDetailStock.textContent = `stok ${product.stock}`
+  productDetailCategory.textContent = product.categoryLabel
+  productDetailTitle.textContent = product.name
+  productDetailMeta.textContent = `${product.sku}${product.weightKg > 0 ? ` | ${product.weightKg} kg` : ""}`
+  productDetailPrice.textContent = formatProductPrice(product)
+
+  if (product.models.length) {
+    productDetailModels.hidden = false
+    productDetailModels.textContent = `Model: ${product.models.join(", ")}`
+  } else {
+    productDetailModels.hidden = true
+    productDetailModels.textContent = ""
+  }
+
+  state.modalQuantity = 1
+  updateProductModalQuantityUi(product)
+}
+
+const closeProductDetailModal = ({ restoreFocus = true, clearShareUrl = true } = {}) => {
+  if (!productDetailModal || productDetailModal.hidden) {
+    return
+  }
+
+  window.clearTimeout(state.productModalCloseTimer)
+  productDetailModal.classList.remove("is-visible")
+
+  state.productModalCloseTimer = window.setTimeout(() => {
+    productDetailModal.hidden = true
+
+    if (orderSuccessModal && !orderSuccessModal.hidden) {
+      document.body.classList.add("is-modal-open")
+    } else {
+      document.body.classList.remove("is-modal-open")
+    }
+
+    state.activeProductId = ""
+
+    if (clearShareUrl) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("produk")
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
+    }
+
+    if (restoreFocus && state.lastFocusedBeforeProductModal) {
+      state.lastFocusedBeforeProductModal.focus()
+    }
+
+    state.lastFocusedBeforeProductModal = null
+  }, PRODUCT_MODAL_CLOSE_MS)
+}
+
+const openProductDetailModal = (productId, { updateUrl = true } = {}) => {
+  const product = state.productLookup.get(productId)
+
+  if (!product || !productDetailModal) {
+    return
+  }
+
+  if (!orderSuccessModal?.hidden) {
+    closeOrderSuccessModal()
+  }
+
+  state.activeProductId = product.id
+  state.lastFocusedBeforeProductModal = document.activeElement
+  renderProductDetailModal(product)
+
+  window.clearTimeout(state.productModalCloseTimer)
+  productDetailModal.hidden = false
+  document.body.classList.add("is-modal-open")
+
+  requestAnimationFrame(() => {
+    productDetailModal.classList.add("is-visible")
+    productDetailAddButton?.focus()
+  })
+
+  if (updateUrl) {
+    window.history.replaceState({}, "", buildProductShareUrl(product, window.location.origin))
+  }
+
+  statusLiveRegion.textContent = `Detail produk ${product.name} dibuka.`
+}
+
+const maybeOpenPendingProductModal = () => {
+  const slug =
+    state.pendingProductSlug ||
+    new URLSearchParams(window.location.search).get("produk")
+
+  if (!slug || !state.products.length) {
+    return
+  }
+
+  const product = findProductByShareSlug(state.products, slug)
+
+  if (!product) {
+    statusLiveRegion.textContent = "Produk dari link share belum ditemukan."
+    return
+  }
+
+  state.pendingProductSlug = ""
+  openProductDetailModal(product.id, { updateUrl: true })
+}
+
+const shareActiveProduct = async (channel = "native") => {
+  const product = getActiveProduct()
+
+  if (!product) {
+    return
+  }
+
+  const shareUrl = buildProductShareUrl(product, window.location.origin)
+  const shareText = `${product.name} — ${formatProductPrice(product)} | Toko Vespa Jogja`
+
+  if (channel === "whatsapp") {
+    window.open(buildProductWhatsAppShareUrl(product, shareUrl, window.location.origin), "_blank", "noopener")
+    statusLiveRegion.textContent = `Link ${product.name} siap dibagikan lewat WhatsApp.`
+    return
+  }
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: product.name,
+        text: shareText,
+        url: shareUrl
+      })
+      statusLiveRegion.textContent = `Produk ${product.name} berhasil dibagikan.`
+      return
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return
+      }
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
+    statusLiveRegion.textContent = "Link produk disalin. Tempel ke WhatsApp atau sosmed favoritmu."
+  } catch (error) {
+    window.prompt("Salin link produk ini:", `${shareText}\n${shareUrl}`)
+  }
 }
 
 const createHeroProductCard = (product) => {
@@ -355,7 +639,7 @@ const createHeroProductCard = (product) => {
   button.type = "button"
   button.className = "hero-product-card"
   button.dataset.productId = product.id
-  button.setAttribute("aria-label", `Masukkan ${product.name} ke keranjang`)
+  button.setAttribute("aria-label", `Lihat detail ${product.name}`)
   button.innerHTML = `
     <div class="hero-product-thumb">
       <img
@@ -386,15 +670,10 @@ const createProductCard = (product) => {
   article.className = `product-card ${product.availability === "out" ? "is-out" : ""}`
   article.innerHTML = `
     <button
-      class="product-card-button ${product.availability === "out" ? "is-disabled" : ""}"
+      class="product-card-button ${product.availability === "out" ? "is-out-of-stock" : ""}"
       type="button"
       data-product-id="${escapeHtml(product.id)}"
-      aria-label="${escapeHtml(
-        product.availability === "out"
-          ? `${product.name} stock habis`
-          : `Masukkan ${product.name} ke keranjang`
-      )}"
-      ${product.availability === "out" ? "disabled" : ""}
+      aria-label="${escapeHtml(`Lihat detail ${product.name}`)}"
     >
       <div class="product-image-wrap">
         <img
@@ -476,11 +755,9 @@ const setCatalogLoading = (message) => {
   visibleCount.textContent = ""
 }
 
-const getFilteredProducts = () => {
-  const query = state.search.toLowerCase()
-
-  return [...state.products]
-    .filter((product) => !query || product.searchIndex.includes(query))
+const getFilteredProducts = () =>
+  [...state.products]
+    .filter((product) => matchesSearchQuery(product, state.search))
     .sort((left, right) => {
       const scoreDiff = getSearchScore(right, state.search) - getSearchScore(left, state.search)
 
@@ -498,7 +775,6 @@ const getFilteredProducts = () => {
 
       return left.name.localeCompare(right.name, "id")
     })
-}
 
 const updateSummary = (filteredProducts) => {
   const totalFiltered = filteredProducts.length
@@ -554,6 +830,13 @@ const renderHero = () => {
 
 const renderProducts = () => {
   if (state.products.length === 0) {
+    productGrid.innerHTML = ""
+    emptyState.hidden = false
+    loadMoreButton.hidden = true
+    productCount.textContent = "0 produk aktif"
+    resultSummary.textContent = "Katalog belum bisa ditampilkan."
+    activeFilterText.textContent = ""
+    visibleCount.textContent = "0 item"
     return
   }
 
@@ -589,7 +872,7 @@ const renderCart = () => {
     cartList.innerHTML = `
       <div class="cart-empty">
         <strong>Keranjang masih kosong.</strong>
-        <p>Tap produk yang statusnya ready untuk menambahkannya ke pesanan.</p>
+        <p>Tap produk untuk lihat detail, lalu masukkan yang ready ke pesanan.</p>
       </div>
     `
     checkoutButton.classList.add("is-disabled")
@@ -788,7 +1071,7 @@ const handleCheckoutSubmit = async (event) => {
   }
 }
 
-const addToCart = (productId, sourceButton) => {
+const addToCart = (productId, sourceButton, quantity = 1) => {
   if (state.isSubmittingOrder || isOrderRetryHoldActive()) {
     setCheckoutFeedback(
       state.isSubmittingOrder
@@ -799,33 +1082,68 @@ const addToCart = (productId, sourceButton) => {
     statusLiveRegion.textContent = state.isSubmittingOrder
       ? "Order sedang diproses. Tambah produk ditahan sementara."
       : "Pengecekan order terakhir masih berjalan. Tambah produk ditahan sementara."
-    return
+    return false
   }
 
   const product = state.productLookup.get(productId)
 
   if (!product || product.availability === "out") {
-    return
+    return false
   }
 
+  const amount = Math.max(1, Number(quantity) || 1)
   const currentQty = cart.get(productId) || 0
+  const nextQty = currentQty + amount
 
-  if (currentQty >= product.stock) {
+  if (nextQty > product.stock) {
     statusLiveRegion.textContent = `Stok maksimum untuk ${product.name} sudah tercapai.`
-    return
+    return false
   }
 
   if (!lockProductAdd(productId)) {
     triggerCartAttention()
     statusLiveRegion.textContent = `${product.name} baru saja masuk ke keranjang.`
-    return
+    return false
   }
 
-  cart.set(productId, currentQty + 1)
+  cart.set(productId, nextQty)
   resetLastOrderState()
   renderCart()
   playAddToCartFeedback(sourceButton)
   statusLiveRegion.textContent = `${product.name} ditambahkan ke keranjang.`
+  return true
+}
+
+const addActiveProductToCartFromModal = () => {
+  const product = getActiveProduct()
+
+  if (!product) {
+    return
+  }
+
+  const added = addToCart(product.id, productDetailAddButton, state.modalQuantity)
+
+  if (!added) {
+    updateProductModalQuantityUi(product)
+    return
+  }
+
+  renderProductDetailModal(product)
+  closeProductDetailModal({ restoreFocus: false })
+  cartLink.focus()
+}
+
+const setProductModalQuantity = (nextQuantity) => {
+  const product = getActiveProduct()
+
+  if (!product) {
+    return
+  }
+
+  const currentCartQty = cart.get(product.id) || 0
+  const maxAddable = Math.max(0, product.stock - currentCartQty)
+  state.modalQuantity = Math.min(Math.max(1, nextQuantity), Math.max(1, maxAddable))
+  updateProductModalQuantityUi(product)
 }
 
 const updateCartQuantity = (productId, nextQuantity) => {
@@ -877,11 +1195,11 @@ const bindProductTap = (container) => {
   container.addEventListener("click", (event) => {
     const button = event.target.closest("[data-product-id]")
 
-    if (!button || button.disabled) {
+    if (!button) {
       return
     }
 
-    addToCart(button.dataset.productId, button)
+    openProductDetailModal(button.dataset.productId)
   })
 }
 
@@ -953,6 +1271,50 @@ const bindEvents = () => {
 
   bindProductTap(heroFeaturedGrid)
   bindProductTap(productGrid)
+
+  productDetailGalleryTrack?.addEventListener("scroll", () => {
+    window.requestAnimationFrame(syncProductDetailGalleryDots)
+  })
+
+  productDetailGalleryDots?.addEventListener("click", (event) => {
+    const dot = event.target.closest("[data-gallery-dot]")
+
+    if (!dot || !productDetailGalleryTrack) {
+      return
+    }
+
+    const index = Number(dot.dataset.galleryDot || 0)
+    productDetailGalleryTrack.scrollTo({
+      left: index * productDetailGalleryTrack.clientWidth,
+      behavior: prefersReducedMotion.matches ? "auto" : "smooth"
+    })
+  })
+
+  productModalCloseTargets.forEach((target) => {
+    target.addEventListener("click", () => {
+      closeProductDetailModal()
+    })
+  })
+
+  productDetailQtyDecrease?.addEventListener("click", () => {
+    setProductModalQuantity(state.modalQuantity - 1)
+  })
+
+  productDetailQtyIncrease?.addEventListener("click", () => {
+    setProductModalQuantity(state.modalQuantity + 1)
+  })
+
+  productDetailAddButton?.addEventListener("click", () => {
+    addActiveProductToCartFromModal()
+  })
+
+  productDetailShareButton?.addEventListener("click", () => {
+    void shareActiveProduct("native")
+  })
+
+  productDetailShareWaButton?.addEventListener("click", () => {
+    void shareActiveProduct("whatsapp")
+  })
 
   cartList.addEventListener("click", (event) => {
     if (state.isSubmittingOrder || isOrderRetryHoldActive()) {
@@ -1028,7 +1390,16 @@ const bindEvents = () => {
   })
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !orderSuccessModal.hidden) {
+    if (event.key !== "Escape") {
+      return
+    }
+
+    if (!productDetailModal?.hidden) {
+      closeProductDetailModal()
+      return
+    }
+
+    if (!orderSuccessModal?.hidden) {
       closeOrderSuccessModal({ restoreFocus: true })
     }
   })
@@ -1036,6 +1407,8 @@ const bindEvents = () => {
 
 const init = async () => {
   yearSlot.textContent = new Date().getFullYear()
+  state.pendingProductSlug =
+    new URLSearchParams(window.location.search).get("produk") || ""
   clearCartButton.hidden = true
   renderCart()
   initReveal()
@@ -1059,9 +1432,19 @@ const init = async () => {
         "Menampilkan katalog lokal sambil sinkronisasi inventori live."
     }
 
+    if (!hasRenderedInitialSnapshot) {
+      const fallbackCatalog = await loadCatalog()
+      hasRenderedInitialSnapshot = applyCatalogSnapshot(fallbackCatalog)
+    }
+
+    if (!hasRenderedInitialSnapshot) {
+      setCatalogLoading("Katalog belum bisa dimuat. Refresh halaman atau cek koneksi server.")
+      setHeroLoading("Produk unggulan belum bisa dimuat.")
+    }
+
     void fetchLiveCatalog()
       .then((catalog) => {
-  applyCatalogSnapshot(catalog.data)
+        applyCatalogSnapshot(catalog)
         statusLiveRegion.textContent =
           "Inventori live berhasil diperbarui dari Google Sheet."
       })

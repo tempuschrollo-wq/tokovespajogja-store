@@ -346,6 +346,124 @@ export const getInventorySummary = (products = []) =>
     { totalProducts: 0, readyProducts: 0, outProducts: 0, totalStock: 0 }
   )
 
+export const tokenizeSearchQuery = (rawQuery = "") =>
+  normalizeText(rawQuery)
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+
+export const matchesSearchQuery = (product, rawQuery = "") => {
+  const tokens = tokenizeSearchQuery(rawQuery)
+
+  if (!tokens.length) {
+    return true
+  }
+
+  const haystack = product.searchIndex || buildSearchIndex(product)
+  return tokens.every((token) => haystack.includes(token))
+}
+
+export const slugifyProductName = (name = "") =>
+  normalizeText(name)
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 120)
+
+export const buildProductSlug = (product) => slugifyProductName(product?.name || "")
+
+export const findProductByShareSlug = (products = [], slug = "") => {
+  const target = String(slug || "")
+    .trim()
+    .toLowerCase()
+
+  if (!target) {
+    return null
+  }
+
+  const exactMatches = products.filter((product) => buildProductSlug(product) === target)
+
+  if (exactMatches.length === 1) {
+    return exactMatches[0]
+  }
+
+  if (exactMatches.length > 1) {
+    return (
+      exactMatches.find((product) => product.availability === "ready") ||
+      exactMatches[0]
+    )
+  }
+
+  const partialMatches = products.filter((product) => {
+    const productSlug = buildProductSlug(product)
+    return productSlug.startsWith(target) || target.startsWith(productSlug)
+  })
+
+  if (partialMatches.length === 1) {
+    return partialMatches[0]
+  }
+
+  return null
+}
+
+const splitProductImageSources = (rawValue = "") => {
+  const raw = String(rawValue || "").trim()
+
+  if (!raw) {
+    return []
+  }
+
+  if (raw.startsWith("data:")) {
+    return [raw]
+  }
+
+  if (raw.includes("|")) {
+    return raw
+      .split("|")
+      .map((part) => part.trim())
+      .filter(Boolean)
+  }
+
+  return [raw]
+}
+
+export const getProductImages = (product) => {
+  const sources = splitProductImageSources(product?.imageUrl)
+
+  if (!sources.length) {
+    return [getProductImageSrc(product)]
+  }
+
+  return sources.map((source) =>
+    source.startsWith("data:") || /^https?:\/\//i.test(source)
+      ? source
+      : getProductImageSrc(product)
+  )
+}
+
+export const buildProductShareUrl = (product, origin = "") => {
+  const baseOrigin = String(origin || "").trim() || "https://tokovespajogja.store"
+  const slug = buildProductSlug(product)
+  const url = new URL(baseOrigin)
+
+  if (slug) {
+    url.searchParams.set("produk", slug)
+  }
+
+  return url.toString()
+}
+
+export const buildProductShareText = (product) =>
+  `${product.name} — ${formatProductPrice(product)} | Toko Vespa Jogja`
+
+export const buildProductWhatsAppShareUrl = (product, pageUrl, origin = "") => {
+  const shareUrl = pageUrl || buildProductShareUrl(product, origin)
+  const message = `${buildProductShareText(product)}\n${shareUrl}`
+  return `https://wa.me/?text=${encodeURIComponent(message)}`
+}
+
 export const getSearchScore = (product, rawQuery) => {
   const query = normalizeText(rawQuery)
 

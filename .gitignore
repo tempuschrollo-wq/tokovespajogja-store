@@ -1,3 +1,6 @@
 node_modules/
 .cache/
 tests/tvj-live-marketplace-qa.mjs
+
+outputs/
+/*.png
